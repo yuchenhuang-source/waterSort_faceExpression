@@ -21,6 +21,7 @@ export default defineConfig({
         ]
     },
     server: {
-        port: 8080
+        port: 8080,
+        host: true  // listen on 0.0.0.0 to allow access from phone on same network
     }
 })

@@ -109,6 +109,7 @@ import liquidSurface from '../../assets/liquid/surface.png';
 
 // 使用 import.meta.glob 批量导入液体动画序列帧
 const liquidUpImgs = import.meta.glob('../../assets/liquid/1出瓶子/*.png', { eager: true, import: 'default' });
+const ballExpressionImgs = import.meta.glob('../../assets/圆球表情/*.png', { eager: true, import: 'default' });
 const liquidStillImgs = import.meta.glob('../../assets/liquid/2原地暂停/*.png', { eager: true, import: 'default' });
 const liquidMoveImgs = import.meta.glob('../../assets/liquid/3移动和下降/*.png', { eager: true, import: 'default' });
 const liquidDropImgs = import.meta.glob('../../assets/liquid/4落入水中/*.png', { eager: true, import: 'default' });
@@ -249,6 +250,9 @@ export class Preloader extends Scene {
         this.loadLiquidFrames(liquidMoveImgs);
         this.loadLiquidFrames(liquidDropImgs);
         this.loadLiquidFrames(liquidSplashImgs);
+
+        // 加载圆球表情序列帧
+        this.loadLiquidFrames(ballExpressionImgs);
     }
 
     private loadLiquidFrames(images: Record<string, unknown>) {
@@ -349,6 +353,18 @@ export class Preloader extends Scene {
             frames: fireFrames,
             frameRate: 25, // 25帧每秒，1秒完成一个循环
             repeat: -1 // 无限循环
+        });
+
+        // 创建圆球表情动画 (129帧: 00000-00128)
+        const ballExpressionFrames: Phaser.Types.Animations.AnimationFrame[] = [];
+        for (let i = 0; i <= 128; i++) {
+            ballExpressionFrames.push({ key: `圆球表情_${String(i).padStart(5, '0')}` });
+        }
+        this.anims.create({
+            key: 'ball_expression',
+            frames: ballExpressionFrames,
+            frameRate: 30,
+            repeat: -1
         });
 
         // 创建液体动画

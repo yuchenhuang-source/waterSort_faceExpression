@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO } from '../constants/GameConstants';
+import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, BALL_EXPRESSION_OFFSET_X, BALL_EXPRESSION_OFFSET_Y, BALL_EXPRESSION_SCALE_RATIO } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
 
 export class Ball extends Phaser.GameObjects.Container {
@@ -16,6 +16,7 @@ export class Ball extends Phaser.GameObjects.Container {
     private ballImage: Phaser.GameObjects.Image;
     private candleImage: Phaser.GameObjects.Image;
     private liquidSprite: Phaser.GameObjects.Sprite; // 液体动画精灵
+    private ballExpressionSprite: Phaser.GameObjects.Sprite | null = null; // 选中升起时播放的圆球表情动画
     private glowSprites: Phaser.GameObjects.Sprite[] = []; // 多层光晕精灵数组
     /** 选中悬浮时容器上下浮动的 tween（仅液体状态使用） */
     private containerHoverTween: Phaser.Tweens.Tween | null = null;
@@ -83,20 +84,21 @@ export class Ball extends Phaser.GameObjects.Container {
 
     /**
      * 根据试管 displayWidth 计算液体精灵 scale：displayWidth = 试管宽 * 比例，保持素材宽高比。
-     * 首次选中时试管 displayWidth 可能尚未就绪，用父容器或配置宽度做回退。
+     * 补偿 Ball 容器的 scale，使液体最终视觉尺寸一致（多操作后球可能被 setScale，导致子节点被缩放）。
+     * 确保不小于配置基准，避免异常缩小。
      */
     private setLiquidScaleFromTubeWidth(tubeDisplayWidth: number) {
-        const parentW = (this.parentContainer as Phaser.GameObjects.GameObject & { displayWidth?: number })?.displayWidth;
         const configW = this.scene.scale.height > this.scene.scale.width
             ? GAME_CONFIG.PORTRAIT.TUBE_WIDTH
             : GAME_CONFIG.LANDSCAPE.TUBE_WIDTH;
         const w = (tubeDisplayWidth != null && tubeDisplayWidth > 0)
-            ? tubeDisplayWidth
-            : ((parentW != null && parentW > 0) ? parentW : configW);
+            ? Math.max(tubeDisplayWidth, configW)
+            : configW;
 
         const frameW = this.liquidSprite.width || 129;
-        const targetW = w * LIQUID_BALL_DISPLAY_WIDTH_RATIO;
-        const scale = targetW / frameW;
+        const targetW = w * LIQUID_BALL_DISPLAY_WIDTH_RATIO * LIQUID_BALL_SIZE_SCALE;
+        const ballScale = Math.max(0.01, this.scaleX);
+        const scale = (targetW / frameW) / ballScale;
         this.liquidSprite.setScale(scale);
         // 多层光晕精灵逐渐放大，形成从里到外的渐变效果
         this.glowSprites.forEach((glowSprite, index) => {
@@ -106,11 +108,59 @@ export class Ball extends Phaser.GameObjects.Container {
     }
 
     /**
+     * 显示并播放圆球表情动画（选中升起时）
+     */
+    private showBallExpression(tubeDisplayWidth?: number): void {
+        if (!this.scene.textures.exists('圆球表情_00000')) return;
+        if (!this.ballExpressionSprite) {
+            this.ballExpressionSprite = this.scene.add.sprite(BALL_EXPRESSION_OFFSET_X, BALL_EXPRESSION_OFFSET_Y, '圆球表情_00000');
+            this.ballExpressionSprite.setOrigin(0.5, 0.5);
+            this.add(this.ballExpressionSprite);
+            if (this.scene.anims.exists('ball_expression')) {
+                this.ballExpressionSprite.play('ball_expression');
+            }
+        }
+        this.ballExpressionSprite.setVisible(true);
+        this.updateBallExpressionScale(tubeDisplayWidth);
+    }
+
+    /**
+     * 隐藏圆球表情动画
+     */
+    private hideBallExpression(): void {
+        if (this.ballExpressionSprite) {
+            this.ballExpressionSprite.setVisible(false);
+        }
+    }
+
+    /**
+     * 更新圆球表情精灵的缩放，与液体精灵 displayWidth 保持一致（避免尺寸不一致）
+     * 补偿 Ball 容器的 scale，与 setLiquidScaleFromTubeWidth 一致。
+     */
+    private updateBallExpressionScale(tubeDisplayWidth?: number): void {
+        if (!this.ballExpressionSprite || !this.ballExpressionSprite.visible) return;
+        const configW = this.scene.scale.height > this.scene.scale.width
+            ? GAME_CONFIG.PORTRAIT.TUBE_WIDTH
+            : GAME_CONFIG.LANDSCAPE.TUBE_WIDTH;
+        const w = (tubeDisplayWidth != null && tubeDisplayWidth > 0)
+            ? Math.max(tubeDisplayWidth, configW)
+            : configW;
+        const targetW = w * LIQUID_BALL_DISPLAY_WIDTH_RATIO * LIQUID_BALL_SIZE_SCALE * BALL_EXPRESSION_SCALE_RATIO;
+        const ballScale = Math.max(0.01, this.scaleX);
+        const frameW = this.ballExpressionSprite.width || 1;
+        const scale = frameW > 0 ? (targetW / frameW) / ballScale : BALL_EXPRESSION_SCALE_RATIO / ballScale;
+        this.ballExpressionSprite.setScale(scale);
+    }
+
+    /**
      * 横竖屏切换后若液体精灵仍在显示，可调用此方法用当前试管宽刷新 scale
      */
     public updateLiquidScale(tubeDisplayWidth: number) {
         if (this.liquidSprite.visible) {
             this.setLiquidScaleFromTubeWidth(tubeDisplayWidth);
+        }
+        if (this.ballExpressionSprite?.visible) {
+            this.updateBallExpressionScale(tubeDisplayWidth);
         }
     }
 
@@ -167,6 +217,7 @@ export class Ball extends Phaser.GameObjects.Container {
         if (state === 'hidden') {
             this.ballImage.setVisible(false);
             this.liquidSprite.setVisible(false);
+            this.hideBallExpression();
             this.glowSprites.forEach(glowSprite => glowSprite.setVisible(false));
             this.candleImage.setVisible(false);
             // 移除动画同步监听器
@@ -174,6 +225,7 @@ export class Ball extends Phaser.GameObjects.Container {
         } else if (state === 'moving') {
             this.ballImage.setVisible(false);
             this.candleImage.setVisible(false);
+            this.hideBallExpression();
             this.liquidSprite.setVisible(true);
             // 显示所有光晕层，每层颜色逐渐变浅
             this.glowSprites.forEach((glowSprite, index) => {
@@ -191,81 +243,49 @@ export class Ball extends Phaser.GameObjects.Container {
             this.syncGlowSprites('liquid_move', true);
             this.setupGlowSync(); // 设置实时同步
 
-            if (options?.tubeDisplayWidth != null) {
-                this.setLiquidScaleFromTubeWidth(options.tubeDisplayWidth);
-            } else {
-                const scale = (this.baseSize / 129) * 1.8;
-                this.liquidSprite.setScale(scale);
-                // 设置多层光晕的缩放
-                this.glowSprites.forEach((glowSprite, index) => {
-                    const glowScale = Ball.GLOW_BASE_SCALE + index * Ball.GLOW_SCALE_STEP;
-                    glowSprite.setScale(scale * glowScale);
-                });
-            }
+            const tubeW = options?.tubeDisplayWidth ?? (this.scene.scale.height > this.scene.scale.width ? GAME_CONFIG.PORTRAIT.TUBE_WIDTH : GAME_CONFIG.LANDSCAPE.TUBE_WIDTH);
+            this.setLiquidScaleFromTubeWidth(tubeW);
         } else if (state === 'rising') {
             this.ballImage.setVisible(false);
             this.candleImage.setVisible(false);
             this.liquidSprite.setVisible(true);
-            // 显示所有光晕层，每层颜色逐渐变浅
             this.glowSprites.forEach((glowSprite, index) => {
                 glowSprite.setVisible(true);
                 const lightenRatio = Ball.GLOW_BASE_LIGHTEN + index * Ball.GLOW_LIGHTEN_STEP;
                 const glowColor = this.lightenColor(liquidColor, lightenRatio);
                 glowSprite.setTintFill(glowColor);
             });
-            
-            // 设置液体颜色
-            this.liquidSprite.setTintFill(liquidColor); // 黑色帧按形状渲染为液体颜色
+            this.liquidSprite.setTintFill(liquidColor);
 
-            const tubeW = options?.tubeDisplayWidth;
-            if (tubeW != null && tubeW > 0) {
+            const tubeW = options?.tubeDisplayWidth ?? (this.scene.scale.height > this.scene.scale.width ? GAME_CONFIG.PORTRAIT.TUBE_WIDTH : GAME_CONFIG.LANDSCAPE.TUBE_WIDTH);
+            this.setLiquidScaleFromTubeWidth(tubeW);
+            this.showBallExpression(tubeW);
+            this.scene.time.delayedCall(0, () => {
+                if (!this.scene || !this.liquidSprite.visible) return;
                 this.setLiquidScaleFromTubeWidth(tubeW);
-                // 如果已传入有效的 tubeDisplayWidth，延迟调用时也使用它，避免被 parentContainer.displayWidth 错误覆盖
-                // 这样可以确保从纯色试管选中时，液体球的size计算正确
-                this.scene.time.delayedCall(0, () => {
-                    if (!this.scene || !this.liquidSprite.visible) return;
-                    // 优先使用传入的 tubeDisplayWidth（来自 getCachedTubeDisplayWidth），避免 parentContainer.displayWidth 可能的不一致
-                    this.setLiquidScaleFromTubeWidth(tubeW);
-                });
-            } else {
-                const scale = (this.baseSize / 129) * 1.8;
-                this.liquidSprite.setScale(scale);
-                // 设置多层光晕的缩放
-                this.glowSprites.forEach((glowSprite, index) => {
-                    const glowScale = Ball.GLOW_BASE_SCALE + index * Ball.GLOW_SCALE_STEP;
-                    glowSprite.setScale(scale * glowScale);
-                });
-                
-                // 首次选中时试管 displayWidth 可能尚未就绪，下一帧用父容器宽度再算一次
-                this.scene.time.delayedCall(0, () => {
-                    if (!this.scene || !this.liquidSprite.visible) return;
-                    const w = (this.parentContainer as Phaser.GameObjects.GameObject & { displayWidth?: number })?.displayWidth;
-                    if (w != null && w > 0) this.setLiquidScaleFromTubeWidth(w);
-                });
-            }
+                this.updateBallExpressionScale(tubeW);
+            });
 
-            // 确保不受遮罩影响，并置于顶层
             this.clearMask();
             if (this.parentContainer) {
                 this.parentContainer.bringToTop(this);
             } else {
-                this.setDepth(1000); // 如果没有父容器，尝试设置深度
+                this.setDepth(1000);
             }
 
-            // 播放上升帧动画，完成后切换到 保持不动(悬浮) 帧动画并循环
             this.liquidSprite.play('liquid_up');
             this.syncGlowSprites('liquid_up', false);
-            this.setupGlowSync(); // 设置实时同步
-            
+            this.setupGlowSync();
             this.liquidSprite.once('animationcomplete', () => {
                 if (this.liquidSprite.visible) {
-                    this.liquidSprite.play('liquid_still', true); // 保持不动 = 悬浮状态，循环播放
+                    this.liquidSprite.play('liquid_still', true);
                     this.syncGlowSprites('liquid_still', true);
-                    this.setupGlowSync(); // 重新设置同步（因为动画切换了）
+                    this.setupGlowSync();
                 }
             });
         } else {
             // idle 状态
+            this.hideBallExpression();
             if (!this.isCandle) {
                 this.ballImage.setVisible(true);
             } else {
@@ -273,7 +293,6 @@ export class Ball extends Phaser.GameObjects.Container {
             }
             this.liquidSprite.setVisible(false);
             this.glowSprites.forEach(glowSprite => glowSprite.setVisible(false));
-            // 移除动画同步监听器
             this.liquidSprite.off('animationupdate');
         }
     }

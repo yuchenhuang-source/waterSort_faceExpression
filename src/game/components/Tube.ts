@@ -1,6 +1,6 @@
 import { Scene } from 'phaser';
 import { Ball } from './Ball';
-import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO } from '../constants/GameConstants';
+import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
@@ -535,7 +535,9 @@ export class Tube extends Phaser.GameObjects.Container {
 
         // 确保球处于隐藏状态
         ball.setLiquidState('hidden');
-        
+        // 统一设置球容器缩放，与落地时 setScale 一致，避免多操作后尺寸不一致
+        ball.setScale(this.currentBallSize / GAME_CONFIG.BALL_SIZE);
+
         // 计算目标位置（液面顶部）
         const unitHeight = this.currentBallSize + this.currentBallSpacing;
         const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
@@ -553,7 +555,7 @@ export class Tube extends Phaser.GameObjects.Container {
             const dropSprite = this.scene.add.sprite(0, -this.currentHeight / 2 - 50, 'liquid_drop');
             dropSprite.setTintFill(getLiquidColors()[ball.color]);
             const dropFrameW = dropSprite.width || 129;
-            const dropScale = (this.getCachedTubeDisplayWidth() * LIQUID_BALL_DISPLAY_WIDTH_RATIO) / dropFrameW;
+            const dropScale = (this.getCachedTubeDisplayWidth() * LIQUID_BALL_DISPLAY_WIDTH_RATIO * LIQUID_BALL_SIZE_SCALE) / dropFrameW;
             dropSprite.setScale(dropScale);
             this.add(dropSprite);
             this.sendToBack(dropSprite);
