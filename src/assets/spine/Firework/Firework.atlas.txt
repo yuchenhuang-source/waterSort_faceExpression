@@ -1,0 +1,16 @@
+Firework.png
+size:556,530
+filter:Linear,Linear
+pma:true
+2_1
+bounds:2,2,300,300
+Blocks
+bounds:304,238,70,64
+explode_(74)
+bounds:2,304,400,224
+roll
+bounds:404,206,150,322
+smoke_(168)
+bounds:304,4,200,200
+strip
+bounds:506,170,44,34

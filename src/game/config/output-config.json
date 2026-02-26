@@ -1,0 +1,22 @@
+{
+    "difficulty": 1,
+    "emptyTubeCount": 3,
+    "jumpStepCount": 35,
+    "completedTubeCount": 11,
+    "showPopup": true,
+    "liquidColors": {
+        "brown": "0x8B5A2B",
+        "orange": "0xFFA500",
+        "light_purple": "0xC8A2FF",
+        "gray": "0xB4B4B4",
+        "pink": "0xFFB6C1",
+        "purple": "0x9333EA",
+        "red": "0xFF5050",
+        "green": "0x32CD32",
+        "fluorescent_green": "0x00B359",
+        "blue": "0x4668A6",
+        "cyan": "0x00B3B3",
+        "yellow": "0xFFCC00"
+    },
+    "$schema": "ewogICJfdGhyZXNob2xkSW5mbyI6ICLpmIjlgLzor7TmmI7vvJpwYWlyQ291bnRUaHJlc2hvbGQg5Li66YWN5a+55qyh5pWw6ZiI5YC877yMY2xpY2tDb3VudFRocmVzaG9sZCDkuLrngrnlh7vmrKHmlbDpmIjlgLzjgILlvZPku7vkuIDpmIjlgLzovr7liLDml7blsIbop6blj5HkuIvovb3ot7PovawiLAogICJfYnV0dG9uTGltaXRJbmZvIjogIuaMiemSruS9v+eUqOasoeaVsOivtOaYju+8mi0x5oiW5bCP5LqOMOihqOekuuWFt+S9k+S9v+eUqOasoeaVsOOAgmFkZEJ1dHRvblVzZUxpbWl0IOS4uua3u+WKoOaVsOWtl+aMiemSruS9v+eUqOasoeaVsO+8jGhpbnRCdXR0b25Vc2VMaW1pdCDkuLrmj5 zmiqvmjInpkq7kvb/nlKjmrKHmlbAiLAogICJwYWlyQ291bnRUaHJlc2hvbGQiOiAzNSwKICAiY2xpY2tDb3VudFRocmVzaG9sZCI6IDkwLAogICJhZGRCdXR0b25Vc2VMaW1pdCI6IDEsCiAgImhpbnRCdXR0b25Vc2VMaW1pdCI6IC0xCn0="
+}

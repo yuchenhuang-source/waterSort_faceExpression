@@ -1,0 +1,52 @@
+{
+  "name": "ballsort-multi",
+  "description": "A Phaser 3 TypeScript project template that demonstrates React communication and uses Vite for bundling.",
+  "version": "1.0.2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phaserjs/template-react-ts.git"
+  },
+  "author": "Phaser Studio <support@phaser.io> (https://phaser.io/)",
+  "license": "MIT",
+  "licenseUrl": "http://www.opensource.org/licenses/mit-license.php",
+  "bugs": {
+    "url": "https://github.com/phaserjs/template-react-ts/issues"
+  },
+  "homepage": "https://github.com/phaserjs/template-react-ts#readme",
+  "keywords": [
+    "phaser",
+    "phaser3",
+    "react",
+    "vite",
+    "typescript"
+  ],
+  "scripts": {
+    "dev": "vite --config vite/config.dev.mjs",
+    "build": "vite build --config vite/config.prod.mjs && bun run ./scripts/remove-script.ts"
+  },
+  "dependencies": {
+    "@esotericsoftware/spine-phaser-v3": "^4.2.80",
+    "base64-arraybuffer": "^1.0.2",
+    "glob": "^11.0.2",
+    "phaser": "^3.88.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vite-plugin-singlefile": "^2.0.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-alias": "^5.1.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.1",
+    "@typescript-eslint/parser": "^7.13.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.7",
+    "rollup-plugin-inline-image": "^0.1.0",
+    "terser": "^5.28.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.3.1",
+    "zlib": "^1.0.5"
+  }
+}

@@ -1,0 +1,16 @@
+Particle.png
+size:374,62
+filter:Linear,Linear
+pma:true
+Light_Particles_1
+bounds:300,28,10,64
+rotate:90
+Light_Particles_2
+bounds:300,40,20,72
+rotate:90
+light_waves_3
+bounds:2,8,186,52
+square_1
+bounds:190,2,58,58
+square_2
+bounds:250,12,48,48
