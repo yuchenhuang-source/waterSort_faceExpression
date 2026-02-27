@@ -1,0 +1,284 @@
+.level-select-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fade-in 0.5s ease-in-out;
+}
+
+.level-select-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  padding: 2vmin;
+  box-sizing: border-box;
+}
+
+.left-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4vmin;
+  flex: 0 0 35%;
+}
+
+.game-logo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vmin;
+}
+
+/* logo 容器框大小固定，内部图可通过 --logo-scale 调整缩放 */
+.game-icon-wrapper {
+  --logo-scale: 1;
+  width: 20vmin;
+  height: 20vmin;
+  border-radius: 3vmin;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(var(--logo-scale, 1));
+}
+
+.placeholder-img {
+  border: 0.2vmin solid #fff;
+  box-sizing: border-box;
+}
+
+.game-title {
+  font-size: 7vmin;
+  font-weight: bold;
+  color: #000;
+  margin: 0;
+  text-align: center;
+}
+
+.right-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 3vmin;
+  padding: 0 2vmin;
+}
+
+.level-title-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2vmin;
+}
+
+.level-select-title {
+  padding: 2vmin 5vmin;
+  text-align: center;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.level-select-title .choose-bg {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-width: 100%;
+}
+
+.level-select-title .choose-text {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #000000;
+  font-weight: bold;
+  font-size: 3.5vmin;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.level-select-grid {
+  display: flex;
+  gap: 3vmin;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  position: relative;
+  width: 100%;
+}
+
+.level-card {
+  border-radius: 2vmin;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  background: #fff;
+  border: 0.5vmin solid #fff;
+}
+
+.level-card.is-highlighted {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.level-card.is-highlighted .level-image {
+  transform: scale(1.25);
+}
+
+.level-card.is-pressed {
+  transform: translateY(0.2vmin);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+}
+
+.level-card:active .level-image {
+  transform: scale(1);
+}
+
+.level-card:hover:not(.is-pressed) {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.level-card:hover:not(.is-pressed) .level-image {
+  transform: scale(1.08);
+}
+
+.level-image-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  background: #000;
+}
+
+.level-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform 0.5s ease-in-out;
+}
+
+.hand-pointer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-55%, -20%) rotate(-6deg);
+  transition:
+    top 0.9s cubic-bezier(0.4, 0, 0.2, 1),
+    left 0.9s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease-in-out;
+  will-change: top, left;
+}
+
+.hand-pointer.is-visible {
+  opacity: 1;
+}
+
+.hand-pointer.is-tapping .hand-icon {
+  animation: hand-tap 0.32s ease-in-out;
+}
+
+.hand-icon {
+  width: 15vmin;
+  height: auto;
+  display: block;
+  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+@keyframes hand-tap {
+  0% { transform: translateY(0) scale(1); }
+  60% { transform: translateY(0.9vmin) scale(0.94); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.play-now-btn {
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  position: relative;
+}
+
+.play-now-btn .play-now-bg {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-width: 100%;
+}
+
+.play-now-btn .play-now-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font-weight: bold;
+  font-size: 4vmin;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.play-now-btn:hover {
+  transform: translateY(-0.5vmin);
+}
+
+.portrait-only { display: none; }
+.landscape-only { display: block; }
+
+@media (orientation: landscape) {
+  .level-select-content { flex-direction: row; }
+  .left-section { display: flex; }
+  .level-select-grid { flex-direction: row; gap: 2.5vmin; }
+  .level-card { height: 50vmin; }
+  .hand-icon { width: 12vmin; }
+  .portrait-only { display: none; }
+  .landscape-only { display: block; }
+}
+
+@media (orientation: portrait) {
+  .level-select-content { flex-direction: column; }
+  .left-section { flex: 0 0 auto; padding-top: 3vmin; }
+  .game-icon-wrapper { width: 15vmin; height: 15vmin; }
+  .game-title { font-size: 6vmin; }
+  .right-section { flex: 1; justify-content: flex-start; padding-top: 2vmin; }
+  .level-select-grid { gap: 3vmin; margin-bottom: 3vmin; flex-grow: 1; }
+  .level-card { width: 27vmin; height: 30vh; }
+  .hand-icon { width: 15vmin; }
+  .portrait-only { display: block; }
+  .landscape-only { display: none; }
+  .play-now-btn { margin-top: auto; margin-bottom: 2vmin; }
+  .play-now-btn .play-now-text { font-size: 6vmin; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

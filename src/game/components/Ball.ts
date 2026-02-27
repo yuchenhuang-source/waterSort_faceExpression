@@ -3,8 +3,8 @@ import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SI
 import { getLiquidColors } from '../../utils/outputConfigLoader';
 
 export class Ball extends Phaser.GameObjects.Container {
-    // 光晕效果参数（方便调试调整）
-    private static readonly GLOW_LAYER_COUNT = 3; // 光晕层数（从里到外）
+    // 光晕效果参数（3->1 减少每球 2 个 Sprite，提升流畅度）
+    private static readonly GLOW_LAYER_COUNT = 1;
     private static readonly GLOW_BASE_SCALE = 1.15; // 最内层光晕缩放倍数
     private static readonly GLOW_SCALE_STEP = 0.08; // 每层光晕的缩放增量
     private static readonly GLOW_BASE_ALPHA = 0.6; // 最内层光晕透明度
@@ -176,12 +176,11 @@ export class Ball extends Phaser.GameObjects.Container {
                 glowSprite.play(animationKey, loop);
             }
             
-            // 同步帧（确保光晕和液体使用相同的帧）
+            // 同步帧（使用 AnimationState.setCurrentFrame 按动画帧同步，避免 setFrame 错误）
             if (this.liquidSprite.anims.currentFrame) {
-                const frameIndex = this.liquidSprite.anims.currentFrame.index;
-                // 使用帧索引来同步
-                if (glowSprite.anims.currentFrame?.index !== frameIndex) {
-                    glowSprite.setFrame(frameIndex);
+                const targetFrame = this.liquidSprite.anims.currentFrame;
+                if (glowSprite.anims.currentFrame?.index !== targetFrame.index) {
+                    glowSprite.anims.setCurrentFrame(targetFrame);
                 }
             }
         });
@@ -194,13 +193,13 @@ export class Ball extends Phaser.GameObjects.Container {
         // 移除之前的监听器（如果存在）
         this.liquidSprite.off('animationupdate');
         
-        // 添加新的监听器，实时同步所有光晕帧
+        // 添加新的监听器，实时同步所有光晕帧（使用 setCurrentFrame 按动画帧同步）
         this.liquidSprite.on('animationupdate', () => {
-            if (this.liquidSprite.anims.currentFrame) {
-                const frameIndex = this.liquidSprite.anims.currentFrame.index;
+            const targetFrame = this.liquidSprite.anims.currentFrame;
+            if (targetFrame) {
                 this.glowSprites.forEach(glowSprite => {
-                    if (glowSprite.visible && glowSprite.anims.currentFrame?.index !== frameIndex) {
-                        glowSprite.setFrame(frameIndex);
+                    if (glowSprite.visible && glowSprite.anims.currentFrame?.index !== targetFrame.index) {
+                        glowSprite.anims.setCurrentFrame(targetFrame);
                     }
                 });
             }
@@ -218,7 +217,10 @@ export class Ball extends Phaser.GameObjects.Container {
             this.ballImage.setVisible(false);
             this.liquidSprite.setVisible(false);
             this.hideBallExpression();
-            this.glowSprites.forEach(glowSprite => glowSprite.setVisible(false));
+            this.glowSprites.forEach(glowSprite => {
+                glowSprite.setVisible(false);
+                if (glowSprite.parentContainer === this) this.remove(glowSprite);
+            });
             this.candleImage.setVisible(false);
             // 移除动画同步监听器
             this.liquidSprite.off('animationupdate');
@@ -227,8 +229,12 @@ export class Ball extends Phaser.GameObjects.Container {
             this.candleImage.setVisible(false);
             this.hideBallExpression();
             this.liquidSprite.setVisible(true);
-            // 显示所有光晕层，每层颜色逐渐变浅
+            // 确保光晕在显示列表中，然后显示
             this.glowSprites.forEach((glowSprite, index) => {
+                if (glowSprite.parentContainer !== this) {
+                    this.add(glowSprite);
+                    this.sendToBack(glowSprite);
+                }
                 glowSprite.setVisible(true);
                 const lightenRatio = Ball.GLOW_BASE_LIGHTEN + index * Ball.GLOW_LIGHTEN_STEP;
                 const glowColor = this.lightenColor(liquidColor, lightenRatio);
@@ -250,6 +256,10 @@ export class Ball extends Phaser.GameObjects.Container {
             this.candleImage.setVisible(false);
             this.liquidSprite.setVisible(true);
             this.glowSprites.forEach((glowSprite, index) => {
+                if (glowSprite.parentContainer !== this) {
+                    this.add(glowSprite);
+                    this.sendToBack(glowSprite);
+                }
                 glowSprite.setVisible(true);
                 const lightenRatio = Ball.GLOW_BASE_LIGHTEN + index * Ball.GLOW_LIGHTEN_STEP;
                 const glowColor = this.lightenColor(liquidColor, lightenRatio);
@@ -292,7 +302,10 @@ export class Ball extends Phaser.GameObjects.Container {
                 this.candleImage.setVisible(true);
             }
             this.liquidSprite.setVisible(false);
-            this.glowSprites.forEach(glowSprite => glowSprite.setVisible(false));
+            this.glowSprites.forEach(glowSprite => {
+                glowSprite.setVisible(false);
+                if (glowSprite.parentContainer === this) this.remove(glowSprite);
+            });
             this.liquidSprite.off('animationupdate');
         }
     }

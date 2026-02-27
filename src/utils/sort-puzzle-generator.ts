@@ -290,9 +290,11 @@ export function createPuzzle(config: GeneratorConfig): PuzzleResult {
   
   // Log final state
   const diversities = finalTubes.slice(0, tubeCount).map(t => new Set(t).size);
-  console.log(`[PuzzleGenerator] Shuffle complete after ${attemptCount} attempts:`);
-  console.log(`  - ${tubeCount} filled tubes, ${emptyTubes} empty tubes`);
-  console.log(`  - Color diversity per tube: min=${Math.min(...diversities)}, max=${Math.max(...diversities)}`);
+  if (import.meta.env?.DEV) {
+    console.log(`[PuzzleGenerator] Shuffle complete after ${attemptCount} attempts:`);
+    console.log(`  - ${tubeCount} filled tubes, ${emptyTubes} empty tubes`);
+    console.log(`  - Color diversity per tube: min=${Math.min(...diversities)}, max=${Math.max(...diversities)}`);
+  }
 
   return {
     tubes: finalTubes,

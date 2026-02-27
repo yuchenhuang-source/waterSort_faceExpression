@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
 import { Board } from '../components/Board';
+import { isPerfEnabled, initPerf, recordBoardUpdate, tickPerf } from '../../utils/perfLogger';
 import download from './constants/download';
 import { getOutputConfigAsync } from '../../utils/outputConfigLoader';
 import { getDownloadText } from '../../utils/i18n';
@@ -81,6 +82,7 @@ export class Game extends Scene
         EventBus.on('showAd', this.resumeGameSound, this);
 
         this.initDebugOverlay();
+        if (isPerfEnabled()) initPerf();
 
         EventBus.emit('current-scene-ready', this);
     }
@@ -171,7 +173,12 @@ export class Game extends Scene
         const t0 = performance.now();
         this.board.update(time, delta);
         const t1 = performance.now();
-        this.debugUpdateSamples.push(t1 - t0);
+        const boardMs = t1 - t0;
+        this.debugUpdateSamples.push(boardMs);
+        if (isPerfEnabled()) {
+            recordBoardUpdate(boardMs);
+            tickPerf(this);
+        }
     }
     
     /**
