@@ -88,7 +88,7 @@ export function generatePuzzleWithAdapter(config: PuzzleAdapterConfig): PuzzleAd
         emptyTubeCount: actualEmptyTubes,  // 空试管数量
     };
     
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
         console.log('[PuzzleAdapter] 生成器配置:', {
             colorCount: actualColorCount,
             totalTubes,
@@ -114,7 +114,7 @@ export function generatePuzzleWithAdapter(config: PuzzleAdapterConfig): PuzzleAd
     
     // 不再需要手动添加空试管，生成器已经处理好了
     
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
         console.log('[PuzzleAdapter] 生成完成:', {
             totalTubes: tubeContents.length,
             filledTubes: tubeContents.filter(t => t.length > 0).length,
@@ -148,7 +148,7 @@ function calculateColorDistribution(colorCount: number, filledTubes: number): nu
     
     // 验证
     const sum = distribution.reduce((a, b) => a + b, 0);
-    if (sum !== filledTubes && import.meta.env.DEV) {
+    if (sum !== filledTubes && import.meta.env?.DEV) {
         console.error(`[PuzzleAdapter] 颜色分配错误: 总和${sum} != ${filledTubes}`);
     }
     

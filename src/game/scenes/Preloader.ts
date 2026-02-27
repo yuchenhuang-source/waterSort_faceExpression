@@ -2,9 +2,10 @@ import { Scene } from 'phaser';
 import { LIQUID_UP_FRAME_RATE, SPLASH_FRAME_RATE } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
-import { getOutputConfigAsync, getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
+import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { loadAssetGroup } from 'virtual:game-assets';
 import { generatePuzzleWithAdapter, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
+import { getCachedPuzzle, waitForPregenerate } from '../../utils/puzzleCache';
 import { getPersistentSelectedLevel } from '../levelSelection';
 
 // 导入游戏图片资源
@@ -372,18 +373,13 @@ export class Preloader extends Scene {
         // 创建液体动画
         this.createLiquidAnimations();
 
-        // 先加载 output-config（含液体颜色等），生成谜题，预热液体纹理，再启动游戏
-        getOutputConfigAsync()
-            .then(() => this.generatePuzzle())
-            .then((puzzleData) => {
-                // 预热纹理后再启动 Game 场景，并将生成的谜题和配置通过场景数据传递
-                return this.prewarmLiquidTextures().then(() => puzzleData);
-            })
-            .then((puzzleData) => {
-                // 将生成的谜题和配置通过场景数据传递给 Game 场景
-                this.scene.start('Game', puzzleData);
-                EventBus.emit('preloading-complete');
-            });
+        // 资源加载完毕，立即启动 Game 场景（使用当前 difficulty，默认 1）
+        // Game 在选关覆盖层后面渲染，用户点击选关后只需取消隐藏
+        this.generatePuzzle().then((puzzleData) => {
+            console.log('[TIMING] Preloader→Game', { t: performance.now() });
+            this.scene.start('Game', puzzleData);
+            EventBus.emit('preloading-complete');
+        });
     }
 
     /**
@@ -392,11 +388,18 @@ export class Preloader extends Scene {
      */
     private async generatePuzzle(): Promise<{ puzzle: PuzzleAdapterResult; difficulty: number; emptyTubeCount: number }> {
         try {
+            await waitForPregenerate();
+
             // 使用选关界面选择的难度（1/5/9）
             const actualDifficulty = Math.max(1, Math.min(10, getPersistentSelectedLevel()));
 
             const emptyTubeCount = await getOutputConfigValueAsync<number>('emptyTubeCount', 2);
             const actualEmptyTubeCount = Math.max(1, Math.min(6, emptyTubeCount));
+
+            const cached = getCachedPuzzle(actualDifficulty, actualEmptyTubeCount);
+            if (cached) {
+                return cached;
+            }
 
             const puzzle = generatePuzzleWithAdapter({
                 difficulty: actualDifficulty,
@@ -417,36 +420,4 @@ export class Preloader extends Scene {
         }
     }
 
-    /**
-     * 预热液体相关纹理，避免首个交互时才触发解码/上传导致卡顿
-     */
-    private prewarmLiquidTextures(): Promise<void> {
-        const keys = this.textures
-            .getTextureKeys()
-            .filter(key => !key.startsWith('__'));
-
-        return new Promise(resolve => {
-            const rt = this.add.renderTexture(0, 0, 1, 1).setVisible(false);
-            let index = 0;
-            const batchSize = 6;
-            const event = this.time.addEvent({
-                delay: 1,
-                loop: true,
-                callback: () => {
-                    for (let n = 0; n < batchSize && index < keys.length; n++) {
-                        const key = keys[index++];
-                        if (!this.textures.exists(key)) continue;
-                        const image = this.add.image(0, 0, key).setVisible(false);
-                        rt.draw(image, 0, 0);
-                        image.destroy();
-                    }
-                    if (index >= keys.length) {
-                        event.remove(false);
-                        rt.destroy();
-                        resolve();
-                    }
-                }
-            });
-        });
-    }
 }
