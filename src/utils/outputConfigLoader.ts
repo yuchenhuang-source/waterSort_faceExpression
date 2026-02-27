@@ -5,6 +5,7 @@
 
 import { parseEncodedConfig } from './configLoader';
 import { BallColor, BALL_COLORS, DEFAULT_LIQUID_COLORS } from '../game/constants/GameConstants';
+import outputConfigJson from '../game/config/output-config.json';
 
 // 类型定义
 type OutputConfig = Record<string, any>;
@@ -91,25 +92,12 @@ export async function getOutputConfigAsync(): Promise<OutputConfig> {
     return cachedConfig;
   }
 
-  // 开发环境：使用 fetch 读取配置文件
+  // 开发环境：直接使用打包进来的 JSON，无网络延迟
   if (import.meta.env.DEV) {
-    try {
-      const response = await fetch('/src/game/config/output-config.json');
-      if (response.ok) {
-        const config = await response.json() || {};
-        cachedConfig = config;
-        cachedLiquidColors = buildLiquidColorsFromConfig(config);
-        return config;
-      } else {
-        console.warn('开发环境下无法加载 output-config.json: HTTP', response.status);
-        cachedConfig = {};
-        return {};
-      }
-    } catch (error) {
-      console.warn('开发环境下无法加载 output-config.json:', error);
-      cachedConfig = {};
-      return {};
-    }
+    const config = (outputConfigJson as OutputConfig) || {};
+    cachedConfig = config;
+    cachedLiquidColors = buildLiquidColorsFromConfig(config);
+    return config;
   }
 
   // 生产环境：从嵌入的数据中解析

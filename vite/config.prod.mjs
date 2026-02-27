@@ -33,7 +33,7 @@ export default defineConfig({
             includeGroups: ['audio']  // 仅音频由插件提供，图片等由 Preloader 手动加载，避免重复
         }),
         configEmbedPlugin({
-            configFiles: ['src/game/config/output-config.json'],
+            configFiles: ['src/game/config/output-config.json', 'src/game/config/puzzles-config.json'],
             embedKey: 'EMBEDDED_CONFIG',
             verbose: true
         })

@@ -1,10 +1,11 @@
 import { Scene } from 'phaser';
 import { Tube } from './Tube';
 import { Ball } from './Ball';
-import { GAME_CONFIG, BALL_COLORS, BallColor } from '../constants/GameConstants';
+import { GAME_CONFIG, BALL_COLORS, BallColor, BALL_RISE_DURATION, BALL_DROP_DURATION, BALL_MOVE_RISE_ALREADY_HOVER, BALL_MOVE_RISE_NORMAL, BALL_MOVE_ARC_TIME, BALL_MOVE_START_DELAY } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
+import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
 
 /**
  * 表示一个可能的移动
@@ -19,6 +20,11 @@ interface Move {
 export class Board extends Phaser.GameObjects.Container {
     private tubes: Tube[] = [];
     private selectedTube: Tube | null = null;
+    /** 合并绘制：所有试管液体使用同一个 Graphics，减少 draw call */
+    private boardLiquidGraphics: Phaser.GameObjects.Graphics | null = null;
+    private boardLiquidMaskGraphics: Phaser.GameObjects.Graphics | null = null;
+    private boardLiquidMask: Phaser.Display.Masks.GeometryMask | null = null;
+    private _liquidRedrawScheduled: boolean = false;
     private hand: Phaser.GameObjects.Image | null = null;
     private handTween: Phaser.Tweens.Tween | null = null;
     private handFadeTween: Phaser.Tweens.Tween | null = null;
@@ -45,6 +51,7 @@ export class Board extends Phaser.GameObjects.Container {
     constructor(scene: Scene, preGeneratedPuzzle?: PuzzleAdapterResult, preDifficulty?: number, preEmptyTubeCount?: number) {
         super(scene, 0, 0);
 
+        this.createSharedLiquidGraphics();
         this.createTubes();
         
         // 如果 Preloader 阶段已生成谜题，直接使用；否则异步加载难度配置后生成
@@ -87,13 +94,67 @@ export class Board extends Phaser.GameObjects.Container {
         this.checkWinConditionAfterAnimation();
     }
 
+    private createSharedLiquidGraphics() {
+        this.boardLiquidGraphics = this.scene.add.graphics();
+        this.boardLiquidMaskGraphics = this.scene.make.graphics();
+        this.boardLiquidMask = new Phaser.Display.Masks.GeometryMask(this.scene, this.boardLiquidMaskGraphics!);
+        this.boardLiquidGraphics.setMask(this.boardLiquidMask);
+        this.add(this.boardLiquidGraphics);
+    }
+
     private createTubes() {
+        const requestRedraw = () => this.requestLiquidRedraw();
         for (let i = 0; i < GAME_CONFIG.TUBE_COUNT; i++) {
-            const tube = new Tube(this.scene, 0, 0, i);
+            const tube = new Tube(this.scene, 0, 0, i, requestRedraw);
             tube.on('pointerdown', () => this.handleTubeClick(tube));
             this.add(tube);
             this.tubes.push(tube);
         }
+    }
+
+    private requestLiquidRedraw() {
+        if (this._liquidRedrawScheduled) return;
+        this._liquidRedrawScheduled = true;
+        this.scene.events.once('postupdate', () => {
+            this._liquidRedrawScheduled = false;
+            this.drawAllLiquids();
+        });
+    }
+
+    private drawAllLiquids() {
+        if (!this.boardLiquidGraphics || !this.boardLiquidMaskGraphics) return;
+        const t0 = isPerfEnabled() ? performance.now() : 0;
+        this.boardLiquidGraphics.clear();
+        for (const tube of this.tubes) {
+            tube.drawLiquidBlocksTo(this.boardLiquidGraphics!);
+            tube.updateSurfaceSprites();
+        }
+        if (isPerfEnabled() && t0 > 0) recordDrawLiquid(performance.now() - t0);
+    }
+
+    private updateBoardLiquidMask() {
+        if (!this.boardLiquidMaskGraphics) return;
+        this.boardLiquidMaskGraphics.clear();
+        const config = this.scene.scale.height > this.scene.scale.width ? GAME_CONFIG.PORTRAIT : GAME_CONFIG.LANDSCAPE;
+        const radius = (config.TUBE_WIDTH - 4) / 2;
+        const maskWidth = config.TUBE_WIDTH - 4;
+        const maskHeight = config.TUBE_HEIGHT - 4;
+        const totalWidth = (GAME_CONFIG.TUBE_COLS - 1) * config.COL_OFFSET_X;
+        const totalHeight = (GAME_CONFIG.TUBE_ROWS - 1) * config.ROW_SPACING_Y;
+        const startX = (this.scene.scale.width - totalWidth) / 2;
+        const startY = (this.scene.scale.height - totalHeight) / 2;
+        this.boardLiquidMaskGraphics.fillStyle(0xffffff);
+        this.tubes.forEach((tube, index) => {
+            const row = Math.floor(index / GAME_CONFIG.TUBE_COLS);
+            const col = index % GAME_CONFIG.TUBE_COLS;
+            const tx = startX + col * config.COL_OFFSET_X;
+            const ty = startY + row * config.ROW_SPACING_Y;
+            this.boardLiquidMaskGraphics!.fillRoundedRect(
+                tx - maskWidth / 2, ty - maskHeight / 2,
+                maskWidth, maskHeight,
+                { tl: 0, tr: 0, bl: radius, br: radius }
+            );
+        });
     }
 
     /**
@@ -190,8 +251,8 @@ export class Board extends Phaser.GameObjects.Container {
     private initializeBallsWithPuzzle(result: PuzzleAdapterResult) {
         const tubeContents = result.tubes;
         
-        // 验证生成的谜题
-        const validation = validatePuzzle(tubeContents);
+        // 验证生成的谜题（传入配置的空试管数以正确校验）
+        const validation = validatePuzzle(tubeContents, this.emptyTubeCount);
         if (!validation.valid && import.meta.env.DEV) {
             console.error('[Board] 谜题验证失败:', validation.errors);
         }
@@ -1145,7 +1206,7 @@ export class Board extends Phaser.GameObjects.Container {
             this.scene.tweens.add({
                 targets: topBall,
                 y: topY,
-                duration: 200,
+                duration: BALL_RISE_DURATION,
                 ease: 'Power2',
                 onStart: () => {
                     // 上升时：若下方有相邻液体，在相邻液面播放水花（颜色为相邻液体颜色）
@@ -1175,7 +1236,7 @@ export class Board extends Phaser.GameObjects.Container {
                 this.scene.tweens.add({
                     targets: topBall,
                     y: targetY,
-                    duration: 180,
+                    duration: BALL_DROP_DURATION,
                     ease: 'Quad.easeIn',
                     onComplete: () => {
                         if (!topBall.scene || !tube.scene) return;
@@ -1257,7 +1318,7 @@ export class Board extends Phaser.GameObjects.Container {
             // 然后为每个球创建独立的移动动画
             ballsToMove.forEach((ball, index) => {
                 // ballsToMove[0] 是顶球，先启动
-                const startDelay = index * 100;
+                const startDelay = index * BALL_MOVE_START_DELAY;
                 
                 // 计算球在 target.balls 中的索引
                 // ballsToMove[0] (顶球，先动) -> 落在 originalBallCount 位置（新球中的最下面）
@@ -1278,10 +1339,9 @@ export class Board extends Phaser.GameObjects.Container {
                 // 计算球当前是否已在悬浮位置（顶部球）
                 const isAlreadyHovering = index === 0 && ball.y < 0;
                 
-                // 动画参数
-                const riseTime = isAlreadyHovering ? 50 : 150; // 已悬浮的球快速调整，其他球正常上升
-                const arcTime = 250; // 弧线移动时间
-                const dropTime = 350; // 下落时间
+                // 动画参数（时长可在 GameConstants 中调整）
+                const riseTime = isAlreadyHovering ? BALL_MOVE_RISE_ALREADY_HOVER : BALL_MOVE_RISE_NORMAL;
+                const arcTime = BALL_MOVE_ARC_TIME;
                 
                 // 使用连续的tween实现流畅动画
                 // 第一步：快速上升到源试管上方；该球开始上升时从源试管移除一层并刷新液面（分层更新）
@@ -1349,7 +1409,7 @@ export class Board extends Phaser.GameObjects.Container {
                                         this.scene.tweens.add({
                                             targets: ball,
                                             y: finalY,
-                                            duration: 180, // 再次加速下落
+                                            duration: BALL_DROP_DURATION, // 再次加速下落
                                             ease: 'Quad.easeIn',
                                             onComplete: () => {
                                                 if (!ball.scene || !target.scene) return;
@@ -1509,28 +1569,28 @@ export class Board extends Phaser.GameObjects.Container {
         this.hintTargetTube = null;
         this.hintStep = 'none';
         
-        // 延后到下一帧执行 findBestMove，避免阻塞当前帧（特别是开场1500ms时）
-        this.scene.time.delayedCall(0, () => {
+        // 延后到空闲时执行 findBestMove，避免阻塞主线程
+        const runFindBest = () => {
             if (!this.hand || !this.isGameActive) return;
-            
-            // 使用智能评分系统找到最佳移动
             const bestMove = this.findBestMove();
-            
             if (bestMove) {
                 this.hintSourceTube = bestMove.source;
                 this.hintTargetTube = bestMove.target;
                 this.hintStep = 'source';
-
-                // 将试管的局部坐标转换为全局坐标（因为hand添加到场景而非容器）
                 const globalPos = this.getWorldTransformMatrix().transformPoint(
                     this.hintSourceTube.x,
                     this.hintSourceTube.y - this.hintSourceTube.height / 4
                 );
                 this.hand.setPosition(globalPos.x, globalPos.y);
-                this.handBaseY = globalPos.y; // 记录基准Y位置
+                this.handBaseY = globalPos.y;
                 this.fadeInHand();
             }
-        }, [], this);
+        };
+        if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(() => runFindBest(), { timeout: 50 });
+        } else {
+            this.scene.time.delayedCall(0, runFindBest, [], this);
+        }
     }
 
     /**
@@ -1858,6 +1918,8 @@ export class Board extends Phaser.GameObjects.Container {
 
             tube.setPosition(x, y);
         });
+
+        this.updateBoardLiquidMask();
 
         // 更新引导手指位置（如果正在显示）
         this.updateHintPosition();

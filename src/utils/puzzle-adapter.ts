@@ -88,7 +88,7 @@ export function generatePuzzleWithAdapter(config: PuzzleAdapterConfig): PuzzleAd
         emptyTubeCount: actualEmptyTubes,  // 空试管数量
     };
     
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
         console.log('[PuzzleAdapter] 生成器配置:', {
             colorCount: actualColorCount,
             totalTubes,
@@ -114,7 +114,7 @@ export function generatePuzzleWithAdapter(config: PuzzleAdapterConfig): PuzzleAd
     
     // 不再需要手动添加空试管，生成器已经处理好了
     
-    if (import.meta.env.DEV) {
+    if (import.meta.env?.DEV) {
         console.log('[PuzzleAdapter] 生成完成:', {
             totalTubes: tubeContents.length,
             filledTubes: tubeContents.filter(t => t.length > 0).length,
@@ -148,7 +148,7 @@ function calculateColorDistribution(colorCount: number, filledTubes: number): nu
     
     // 验证
     const sum = distribution.reduce((a, b) => a + b, 0);
-    if (sum !== filledTubes && import.meta.env.DEV) {
+    if (sum !== filledTubes && import.meta.env?.DEV) {
         console.error(`[PuzzleAdapter] 颜色分配错误: 总和${sum} != ${filledTubes}`);
     }
     
@@ -182,8 +182,10 @@ function selectColors(colorCount: number, seed: number): BallColor[] {
 
 /**
  * 验证生成的谜题是否有效
+ * @param tubes 谜题试管内容
+ * @param expectedEmptyTubes 期望的空试管数量（可选，不传则允许 1-6 个空试管）
  */
-export function validatePuzzle(tubes: BallColor[][]): { valid: boolean; errors: string[] } {
+export function validatePuzzle(tubes: BallColor[][], expectedEmptyTubes?: number): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
     const capacity = GAME_CONFIG.TUBE_CAPACITY;
     
@@ -210,9 +212,13 @@ export function validatePuzzle(tubes: BallColor[][]): { valid: boolean; errors: 
         }
     }
     
-    // 检查空试管数量
-    if (emptyTubeCount !== 2) {
-        errors.push(`空试管数量错误: ${emptyTubeCount} != 2`);
+    // 检查空试管数量（支持配置的 1-6 个空试管）
+    if (expectedEmptyTubes !== undefined) {
+        if (emptyTubeCount !== expectedEmptyTubes) {
+            errors.push(`空试管数量错误: ${emptyTubeCount} != ${expectedEmptyTubes}`);
+        }
+    } else if (emptyTubeCount < 1 || emptyTubeCount > 6) {
+        errors.push(`空试管数量异常: ${emptyTubeCount} (应为 1-6)`);
     }
     
     // 检查每种颜色的球数是否为8的倍数

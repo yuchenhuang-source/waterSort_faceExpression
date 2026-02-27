@@ -1,9 +1,12 @@
 import { Scene } from 'phaser';
+import { LIQUID_UP_FRAME_RATE, SPLASH_FRAME_RATE } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
-import { getOutputConfigAsync, getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
+import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { loadAssetGroup } from 'virtual:game-assets';
 import { generatePuzzleWithAdapter, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
+import { getCachedPuzzle, waitForPregenerate } from '../../utils/puzzleCache';
+import { getPersistentSelectedLevel } from '../levelSelection';
 
 // 导入游戏图片资源
 import downloadBtn from '../../assets/按钮.png';
@@ -286,24 +289,24 @@ export class Preloader extends Scene {
         this.anims.create({
             key: 'liquid_up',
             frames: this.generateFrames('up', 1, 10),
-            frameRate: 30,
+            frameRate: LIQUID_UP_FRAME_RATE,
             repeat: 0
         });
 
-        // 2. 原地暂停 (Still) - 正序→倒序→正序 往返循环，保证每帧衔接连贯
+        // 2. 原地暂停 (Still) - 降低 frameRate 减轻每帧动画更新负担
         this.anims.create({
             key: 'liquid_still',
             frames: this.generateFrames('still', 11, 21),
-            frameRate: 20,
+            frameRate: 15,
             repeat: -1,
             yoyo: true
         });
 
-        // 3. 移动和下降 (Move) - 循环播放
+        // 3. 移动和下降 (Move) - 20fps 平衡流畅度与性能
         this.anims.create({
             key: 'liquid_move',
             frames: this.generateFrames('move', 22, 44),
-            frameRate: 30,
+            frameRate: 20,
             repeat: -1
         });
 
@@ -319,7 +322,7 @@ export class Preloader extends Scene {
         this.anims.create({
             key: 'liquid_splash',
             frames: this.generateFrames('splash', 0, 18),
-            frameRate: 30,
+            frameRate: SPLASH_FRAME_RATE,
             repeat: 0
         });
     }
@@ -351,11 +354,11 @@ export class Preloader extends Scene {
         this.anims.create({
             key: 'fire_animation',
             frames: fireFrames,
-            frameRate: 25, // 25帧每秒，1秒完成一个循环
-            repeat: -1 // 无限循环
+            frameRate: 15,
+            repeat: -1
         });
 
-        // 创建圆球表情动画 (129帧: 00000-00128)
+        // 创建圆球表情动画 (129帧) - 20fps 减轻更新负担
         const ballExpressionFrames: Phaser.Types.Animations.AnimationFrame[] = [];
         for (let i = 0; i <= 128; i++) {
             ballExpressionFrames.push({ key: `圆球表情_${String(i).padStart(5, '0')}` });
@@ -363,25 +366,20 @@ export class Preloader extends Scene {
         this.anims.create({
             key: 'ball_expression',
             frames: ballExpressionFrames,
-            frameRate: 30,
+            frameRate: 20,
             repeat: -1
         });
 
         // 创建液体动画
         this.createLiquidAnimations();
 
-        // 先加载 output-config（含液体颜色等），生成谜题，预热液体纹理，再启动游戏
-        getOutputConfigAsync()
-            .then(() => this.generatePuzzle())
-            .then((puzzleData) => {
-                // 预热纹理后再启动 Game 场景，并将生成的谜题和配置通过场景数据传递
-                return this.prewarmLiquidTextures().then(() => puzzleData);
-            })
-            .then((puzzleData) => {
-                // 将生成的谜题和配置通过场景数据传递给 Game 场景
-                this.scene.start('Game', puzzleData);
-                EventBus.emit('preloading-complete');
-            });
+        // 资源加载完毕，立即启动 Game 场景（使用当前 difficulty，默认 1）
+        // Game 在选关覆盖层后面渲染，用户点击选关后只需取消隐藏
+        this.generatePuzzle().then((puzzleData) => {
+            console.log('[TIMING] Preloader→Game', { t: performance.now() });
+            this.scene.start('Game', puzzleData);
+            EventBus.emit('preloading-complete');
+        });
     }
 
     /**
@@ -390,62 +388,36 @@ export class Preloader extends Scene {
      */
     private async generatePuzzle(): Promise<{ puzzle: PuzzleAdapterResult; difficulty: number; emptyTubeCount: number }> {
         try {
-            const difficulty = await getOutputConfigValueAsync<number>('difficulty', 10);
-            const actualDifficulty = Math.max(1, Math.min(10, difficulty));
-            
+            await waitForPregenerate();
+
+            // 使用选关界面选择的难度（1/5/9）
+            const actualDifficulty = Math.max(1, Math.min(10, getPersistentSelectedLevel()));
+
             const emptyTubeCount = await getOutputConfigValueAsync<number>('emptyTubeCount', 2);
             const actualEmptyTubeCount = Math.max(1, Math.min(6, emptyTubeCount));
-            
-            // 生成谜题（在主线程执行，但此时资源已加载，不会阻塞资源加载）
+
+            const cached = getCachedPuzzle(actualDifficulty, actualEmptyTubeCount);
+            if (cached) {
+                return cached;
+            }
+
             const puzzle = generatePuzzleWithAdapter({
                 difficulty: actualDifficulty,
                 emptyTubeCount: actualEmptyTubeCount,
             });
-            
+
             return { puzzle, difficulty: actualDifficulty, emptyTubeCount: actualEmptyTubeCount };
         } catch (e) {
             if (import.meta.env.DEV) {
                 console.warn('[Preloader] 生成谜题失败，使用默认值:', e);
             }
-            // 使用默认值生成谜题
+            const diff = Math.max(1, Math.min(10, getPersistentSelectedLevel()));
             const puzzle = generatePuzzleWithAdapter({
-                difficulty: 10,
+                difficulty: diff,
                 emptyTubeCount: 2,
             });
-            return { puzzle, difficulty: 10, emptyTubeCount: 2 };
+            return { puzzle, difficulty: diff, emptyTubeCount: 2 };
         }
     }
 
-    /**
-     * 预热液体相关纹理，避免首个交互时才触发解码/上传导致卡顿
-     */
-    private prewarmLiquidTextures(): Promise<void> {
-        const keys = this.textures
-            .getTextureKeys()
-            .filter(key => !key.startsWith('__'));
-
-        return new Promise(resolve => {
-            const rt = this.add.renderTexture(0, 0, 1, 1).setVisible(false);
-            let index = 0;
-            const batchSize = 6;
-            const event = this.time.addEvent({
-                delay: 1,
-                loop: true,
-                callback: () => {
-                    for (let n = 0; n < batchSize && index < keys.length; n++) {
-                        const key = keys[index++];
-                        if (!this.textures.exists(key)) continue;
-                        const image = this.add.image(0, 0, key).setVisible(false);
-                        rt.draw(image, 0, 0);
-                        image.destroy();
-                    }
-                    if (index >= keys.length) {
-                        event.remove(false);
-                        rt.destroy();
-                        resolve();
-                    }
-                }
-            });
-        });
-    }
 }

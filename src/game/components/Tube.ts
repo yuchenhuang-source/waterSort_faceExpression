@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
+import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
 import { Ball } from './Ball';
-import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO } from '../constants/GameConstants';
+import { BallColor, BALL_RISE_DURATION, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO, WATER_RISE_DURATION } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
@@ -11,9 +12,9 @@ export class Tube extends Phaser.GameObjects.Container {
     private highlightBodyImage: Phaser.GameObjects.Image;
     private highlightMouthImage: Phaser.GameObjects.Image;
     
-    // 液体渲染相关
+    // 液体渲染相关（合并模式时不创建 liquidGraphics，由 Board 统一绘制）
     private liquidContainer: Phaser.GameObjects.Container;
-    private liquidGraphics: Phaser.GameObjects.Graphics;
+    private liquidGraphics: Phaser.GameObjects.Graphics | null;
     private surfaceSprite: Phaser.GameObjects.Sprite; // 顶部液面（加反光）
     /** 水位上升时专用：加入块下边缘 surface，从动画开始就显式显示，不依赖 boundaries 数组 */
     private addingBlockBottomSurfaceSprite: Phaser.GameObjects.Sprite | null = null;
@@ -71,10 +72,13 @@ export class Tube extends Phaser.GameObjects.Container {
     private _debugDrawLiquidCount: number = 0;
     /** 合并同一帧内的液体重绘请求 */
     private _liquidDrawQueued: boolean = false;
+    /** 合并绘制时由 Board 触发的重绘回调 */
+    private onRequestLiquidRedraw: (() => void) | null = null;
 
-    constructor(scene: Scene, x: number, y: number, id: number) {
+    constructor(scene: Scene, x: number, y: number, id: number, onRequestLiquidRedraw?: () => void) {
         super(scene, x, y);
         this.id = id;
+        this.onRequestLiquidRedraw = onRequestLiquidRedraw ?? null;
 
         // 默认尺寸
         this.currentWidth = GAME_CONFIG.PORTRAIT.TUBE_WIDTH;
@@ -100,9 +104,9 @@ export class Tube extends Phaser.GameObjects.Container {
         this.liquidContainer = scene.add.container(0, 0);
         this.add(this.liquidContainer);
 
-        // 3. 创建液体 Graphics
-        this.liquidGraphics = scene.add.graphics();
-        this.liquidContainer.add(this.liquidGraphics);
+        // 3. 合并模式不创建 per-tube liquidGraphics，由 Board 统一绘制
+        this.liquidGraphics = this.onRequestLiquidRedraw ? null : scene.add.graphics();
+        if (this.liquidGraphics) this.liquidContainer.add(this.liquidGraphics);
 
         // 4. 创建水面 Sprite（使用 surface.png，黑色图运行时按液体颜色着色）
         this.surfaceSprite = scene.add.sprite(0, 0, 'liquid_surface');
@@ -123,7 +127,7 @@ export class Tube extends Phaser.GameObjects.Container {
         // 恢复正常遮罩逻辑
         this.liquidMask.setInvertAlpha(false);
         
-        this.liquidGraphics.setMask(this.liquidMask);
+        if (this.liquidGraphics) this.liquidGraphics.setMask(this.liquidMask);
         this.surfaceSprite.setMask(this.liquidMask);
         if (this.addingBlockBottomSurfaceSprite) this.addingBlockBottomSurfaceSprite.setMask(this.liquidMask);
 
@@ -291,7 +295,162 @@ export class Tube extends Phaser.GameObjects.Container {
         this.requestDrawLiquid();
     }
 
+    /**
+     * 合并绘制：将本试管液体块绘制到 Board 的共享 Graphics（世界坐标）
+     */
+    public drawLiquidBlocksTo(targetGraphics: Phaser.GameObjects.Graphics): void {
+        this._debugDrawLiquidCount++;
+        const ox = this.x;
+        const oy = this.y;
+        const toWorld = (lx: number, ly: number) => ({ x: ox + lx, y: oy + ly });
+        const drawRect = (color: BallColor, lx: number, ly: number, w: number, h: number) => {
+            const p = toWorld(lx, ly);
+            targetGraphics.fillStyle(getLiquidColors()[color], 1);
+            targetGraphics.fillRect(p.x, p.y, w, h);
+        };
+
+        if (this.balls.length === 0 && this.removingBallColor === null && this.addingBallColor === null) {
+            this._lastBoundaries = [];
+            this._lastTopColor = null;
+            this._lastCurrentY = 0;
+            this._lastAddBoundaryY = null;
+            return;
+        }
+
+        const unitHeight = this.currentBallSize + this.currentBallSpacing;
+        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const width = this.currentWidth;
+        let currentY = bottomY;
+        let topColor: BallColor | null = null;
+        let ballsForLiquid = (this._topBallFloating && this.balls.length > 0) ? this.balls.slice(0, -1) : this.balls;
+        if (this.addingBallColor !== null && this.balls.length > 0) ballsForLiquid = this.balls.slice(0, -1);
+
+        const boundaries: Array<{ y: number; color: BallColor }> = [];
+        if (ballsForLiquid.length > 0) {
+            let currentColor = ballsForLiquid[0].color;
+            let currentCount = 0;
+            for (let i = 0; i < ballsForLiquid.length; i++) {
+                const ball = ballsForLiquid[i];
+                if (ball.color === currentColor) currentCount++;
+                else {
+                    const h = currentCount * unitHeight;
+                    drawRect(currentColor, -width / 2, currentY - h, width, h + 2);
+                    boundaries.push({ y: currentY - h, color: ball.color });
+                    currentY -= h;
+                    currentColor = ball.color;
+                    currentCount = 1;
+                }
+            }
+            const h = currentCount * unitHeight;
+            drawRect(currentColor, -width / 2, currentY - h, width, h + 2);
+            currentY -= h;
+            topColor = currentColor;
+        }
+        if (this.removingBallColor !== null && this.removingBallHeight > 0) {
+            boundaries.push({ y: currentY - this.removingBallHeight, color: topColor ?? this.removingBallColor });
+            drawRect(this.removingBallColor, -width / 2, currentY - this.removingBallHeight, width, this.removingBallHeight + 2);
+            currentY -= this.removingBallHeight;
+            topColor = this.removingBallColor;
+        }
+        let addBoundaryY: number | null = null;
+        if (this.addingBallColor !== null) {
+            addBoundaryY = currentY - this.addingBallHeight;
+            if (this._isReturnWaterRise) boundaries.push({ y: addBoundaryY, color: topColor ?? this.addingBallColor });
+            if (this.addingBallHeight > 0) {
+                drawRect(this.addingBallColor, -width / 2, currentY - this.addingBallHeight, width, this.addingBallHeight + 2);
+                currentY -= this.addingBallHeight;
+                topColor = this.addingBallColor;
+            }
+        }
+        this._lastBoundaries = boundaries;
+        this._lastTopColor = topColor;
+        this._lastCurrentY = currentY;
+        this._lastAddBoundaryY = addBoundaryY;
+    }
+
+    private _lastBoundaries: Array<{ y: number; color: BallColor }> = [];
+    private _lastTopColor: BallColor | null = null;
+    private _lastCurrentY: number = 0;
+    private _lastAddBoundaryY: number | null = null;
+
+    /**
+     * 合并绘制：更新液面 Sprite（需在 drawLiquidBlocksTo 之后调用）
+     */
+    public updateSurfaceSprites(): void {
+        const boundaries = this._lastBoundaries;
+        const topColor = this._lastTopColor;
+        const currentY = this._lastCurrentY;
+        const addBoundaryY = this._lastAddBoundaryY;
+
+        if (this.balls.length === 0 && this.removingBallColor === null && this.addingBallColor === null) {
+            this.surfaceSprite.setVisible(false);
+            this.boundarySurfaceSprites.forEach(s => s.setVisible(false));
+            if (this.addingBlockBottomSurfaceSprite) this.addingBlockBottomSurfaceSprite.setVisible(false);
+            return;
+        }
+        const hasSurfaceTexture = this.scene.textures.exists('liquid_surface');
+        if (hasSurfaceTexture) {
+            if (topColor !== null) {
+                const hideTopSurface = this._isReturnWaterRise && this.addingBallColor !== null && this.addingBallHeight <= 0;
+                if (hideTopSurface) this.surfaceSprite.setVisible(false);
+                else {
+                    this.surfaceSprite.setVisible(true);
+                    this.surfaceSprite.setPosition(0, currentY);
+                    this.surfaceSprite.setTintFill(this.lightenColor(getLiquidColors()[topColor], 0.5));
+                    const w = this.currentWidth;
+                    const fw = (this.surfaceSprite.frame?.width ?? this.surfaceSprite.width) || 1;
+                    const fh = (this.surfaceSprite.frame?.height ?? this.surfaceSprite.height) || 1;
+                    this.surfaceSprite.setDisplaySize(w, Math.max(8, (fh / fw) * w));
+                    this.liquidContainer.bringToTop(this.surfaceSprite);
+                }
+            } else this.surfaceSprite.setVisible(false);
+            while (this.boundarySurfaceSprites.length < boundaries.length) {
+                const sprite = this.scene.add.sprite(0, 0, 'liquid_surface');
+                sprite.setOrigin(0.5, 0.5);
+                sprite.setVisible(false);
+                sprite.setDepth(1);
+                if (this.liquidMask) sprite.setMask(this.liquidMask);
+                this.liquidContainer.add(sprite);
+                this.boundarySurfaceSprites.push(sprite);
+            }
+            for (let i = 0; i < boundaries.length; i++) {
+                const b = boundaries[i];
+                const s = this.boundarySurfaceSprites[i];
+                s.setVisible(true);
+                s.setPosition(0, b.y);
+                s.setTintFill(getLiquidColors()[b.color]);
+                const w = this.currentWidth;
+                const fw = (s.frame?.width ?? s.width) || 1;
+                const fh = (s.frame?.height ?? s.height) || 1;
+                s.setDisplaySize(w, Math.max(8, (fh / fw) * w));
+            }
+            for (let i = boundaries.length; i < this.boundarySurfaceSprites.length; i++)
+                this.boundarySurfaceSprites[i].setVisible(false);
+            if (this.addingBlockBottomSurfaceSprite) {
+                if (this.addingBallColor !== null && addBoundaryY !== null && !this._isReturnWaterRise) {
+                    this.addingBlockBottomSurfaceSprite.setVisible(true);
+                    this.addingBlockBottomSurfaceSprite.setPosition(0, addBoundaryY);
+                    this.addingBlockBottomSurfaceSprite.setTintFill(getLiquidColors()[this.addingBallColor]);
+                    const w = this.currentWidth;
+                    const fw = (this.addingBlockBottomSurfaceSprite.frame?.width ?? this.addingBlockBottomSurfaceSprite.width) || 1;
+                    const fh = (this.addingBlockBottomSurfaceSprite.frame?.height ?? this.addingBlockBottomSurfaceSprite.height) || 1;
+                    this.addingBlockBottomSurfaceSprite.setDisplaySize(w, Math.max(8, (fh / fw) * w));
+                    this.liquidContainer.bringToTop(this.addingBlockBottomSurfaceSprite);
+                } else this.addingBlockBottomSurfaceSprite.setVisible(false);
+            }
+        } else {
+            this.surfaceSprite.setVisible(false);
+            this.boundarySurfaceSprites.forEach(s => s.setVisible(false));
+        }
+        if (!this.scene.textures.exists('liquid_surface') || this.addingBallColor === null) {
+            if (this.addingBlockBottomSurfaceSprite) this.addingBlockBottomSurfaceSprite.setVisible(false);
+        }
+    }
+
     private drawLiquid() {
+        if (!this.liquidGraphics) return;
+        const t0 = isPerfEnabled() ? performance.now() : 0;
+        try {
         this._debugDrawLiquidCount++;
         this.liquidGraphics.clear();
         
@@ -465,6 +624,9 @@ export class Tube extends Phaser.GameObjects.Container {
         if (!this.scene.textures.exists('liquid_surface') || this.addingBallColor === null) {
             if (this.addingBlockBottomSurfaceSprite) this.addingBlockBottomSurfaceSprite.setVisible(false);
         }
+        } finally {
+            if (isPerfEnabled() && t0 > 0) recordDrawLiquid(performance.now() - t0);
+        }
     }
 
     /**
@@ -513,6 +675,10 @@ export class Tube extends Phaser.GameObjects.Container {
      * 合并同一帧内的多次重绘请求，保证只绘制一次且使用最新状态
      */
     private requestDrawLiquid(): void {
+        if (this.onRequestLiquidRedraw) {
+            this.onRequestLiquidRedraw();
+            return;
+        }
         if (this._liquidDrawQueued) return;
         this._liquidDrawQueued = true;
         this.scene.events.once('postupdate', () => {
@@ -608,7 +774,7 @@ export class Tube extends Phaser.GameObjects.Container {
             this.scene.tweens.add({
                 targets: this,
                 removingBallHeight: 0,
-                duration: 300, // 约等于上升动画时间
+                duration: BALL_RISE_DURATION, // 与小球飞起动画同步
                 onUpdate: () => {
                     this.drawLiquidThrottled(33); // 约 30fps 重绘，减轻交互卡顿
                 },
@@ -714,9 +880,6 @@ export class Tube extends Phaser.GameObjects.Container {
         return { surfaceY, color };
     }
 
-    /** 球落定后水位渐升的动画时长（ms） */
-    private static readonly WATER_RISE_DURATION = 350;
-
     /**
      * 球落定后：水位逐渐上升，水花随液面上升而移动；结束时变为静态液体。
      * 调用前需已把球加入 balls（如 splice 或 addBall 已 push）。
@@ -778,7 +941,7 @@ export class Tube extends Phaser.GameObjects.Container {
             this.waterRiseTween = this.scene.tweens.add({
                 targets: this,
                 addingBallHeight: unitHeight,
-                duration: Tube.WATER_RISE_DURATION,
+                duration: WATER_RISE_DURATION,
                 ease: 'Quad.easeOut',
                 onUpdate: () => {
                     this.drawLiquidThrottled(33); // 约 30fps 重绘，减轻交互卡顿

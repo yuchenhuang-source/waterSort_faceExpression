@@ -1,9 +1,13 @@
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
 import { Board } from '../components/Board';
+import { isPerfEnabled, initPerf, recordBoardUpdate, tickPerf } from '../../utils/perfLogger';
 import download from './constants/download';
 import { getOutputConfigAsync } from '../../utils/outputConfigLoader';
 import { getDownloadText } from '../../utils/i18n';
+import { getCachedPuzzle } from '../../utils/puzzleCache';
+import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
+import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 
 // 配置类型定义
 interface GameConfig {
@@ -31,11 +35,13 @@ export class Game extends Scene
     
     // 配置相关
     private gameConfig: GameConfig = {
-        jumpStepCount: 999,      // 默认很大的数字，不会触发
+        jumpStepCount: 999,
         completedTubeCount: 999,
         showPopup: true
     };
-    private hasTriggeredDownload: boolean = false; // 是否已触发下载（防止重复触发）
+    private hasTriggeredDownload: boolean = false;
+    private currentDifficulty: number = 1;
+    private currentEmptyTubeCount: number = 2;
 
     constructor ()
     {
@@ -44,13 +50,21 @@ export class Game extends Scene
 
     async create (data?: { puzzle?: any; difficulty?: number; emptyTubeCount?: number })
     {
+        const tCreate = performance.now();
         this.cameras.main.setBackgroundColor('rgba(0, 0, 0, 0)');
         
         // 加载配置
         await this.loadConfig();
+        console.log('[TIMING] loadConfig完成', { t: performance.now(), d: (performance.now() - tCreate).toFixed(0) + 'ms' });
+
+        // 记录当前难度
+        this.currentDifficulty = data?.difficulty ?? 1;
+        this.currentEmptyTubeCount = data?.emptyTubeCount ?? 2;
 
         // 创建游戏区域，传入 Preloader 阶段生成的谜题和配置（如果存在）
+        const tBoard = performance.now();
         this.board = new Board(this, data?.puzzle, data?.difficulty, data?.emptyTubeCount);
+        console.log('[TIMING] Board创建完成', { t: performance.now(), d: (performance.now() - tBoard).toFixed(0) + 'ms' });
 
         // 创建下载按钮
         this.createDownloadButton();
@@ -76,12 +90,17 @@ export class Game extends Scene
         this.input.once('pointerdown', () => this.tryStartBGM());
         this.input.once('pointerup', () => this.tryStartBGM());
 
+        // 用户选关后：如果难度不同则用新谜题重启场景
+        EventBus.on('level-selected', this.onLevelSelected, this);
+
         // 广告显示/暂停时暂停/恢复 Phaser 音频
         EventBus.on('pauseAd', this.pauseGameSound, this);
         EventBus.on('showAd', this.resumeGameSound, this);
 
         this.initDebugOverlay();
+        if (isPerfEnabled()) initPerf();
 
+        console.log('[TIMING] 关卡加载完成', { t: performance.now(), ts: new Date().toISOString() });
         EventBus.emit('current-scene-ready', this);
     }
 
@@ -99,6 +118,19 @@ export class Game extends Scene
 
     private resumeGameSound() {
         this.sound.resumeAll();
+    }
+
+    private async onLevelSelected(difficulty: number) {
+        if (difficulty === this.currentDifficulty) return;
+        const emptyTubeCount = this.currentEmptyTubeCount;
+        const cached = getCachedPuzzle(difficulty, emptyTubeCount);
+        if (cached) {
+            this.scene.restart(cached);
+        } else {
+            const etc = await getOutputConfigValueAsync<number>('emptyTubeCount', 2);
+            const puzzle = generatePuzzleWithAdapter({ difficulty, emptyTubeCount: Math.max(1, Math.min(6, etc)) });
+            this.scene.restart({ puzzle, difficulty, emptyTubeCount: Math.max(1, Math.min(6, etc)) });
+        }
     }
 
     /**
@@ -171,7 +203,12 @@ export class Game extends Scene
         const t0 = performance.now();
         this.board.update(time, delta);
         const t1 = performance.now();
-        this.debugUpdateSamples.push(t1 - t0);
+        const boardMs = t1 - t0;
+        this.debugUpdateSamples.push(boardMs);
+        if (isPerfEnabled()) {
+            recordBoardUpdate(boardMs);
+            tickPerf(this);
+        }
     }
     
     /**

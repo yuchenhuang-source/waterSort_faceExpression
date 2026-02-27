@@ -14,9 +14,18 @@ canvas {
 #app {
   width: 100vw;
   height: 100vh;
-  background-size:contain;
+  background-size: contain;
   display: flex;
   justify-content: center;
+  position: relative;
+}
+
+#game-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .mask {
