@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
 import { Ball } from './Ball';
-import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO } from '../constants/GameConstants';
+import { BallColor, BALL_RISE_DURATION, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO, WATER_RISE_DURATION } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
@@ -774,7 +774,7 @@ export class Tube extends Phaser.GameObjects.Container {
             this.scene.tweens.add({
                 targets: this,
                 removingBallHeight: 0,
-                duration: 300, // 约等于上升动画时间
+                duration: BALL_RISE_DURATION, // 与小球飞起动画同步
                 onUpdate: () => {
                     this.drawLiquidThrottled(33); // 约 30fps 重绘，减轻交互卡顿
                 },
@@ -880,9 +880,6 @@ export class Tube extends Phaser.GameObjects.Container {
         return { surfaceY, color };
     }
 
-    /** 球落定后水位渐升的动画时长（ms） */
-    private static readonly WATER_RISE_DURATION = 350;
-
     /**
      * 球落定后：水位逐渐上升，水花随液面上升而移动；结束时变为静态液体。
      * 调用前需已把球加入 balls（如 splice 或 addBall 已 push）。
@@ -944,7 +941,7 @@ export class Tube extends Phaser.GameObjects.Container {
             this.waterRiseTween = this.scene.tweens.add({
                 targets: this,
                 addingBallHeight: unitHeight,
-                duration: Tube.WATER_RISE_DURATION,
+                duration: WATER_RISE_DURATION,
                 ease: 'Quad.easeOut',
                 onUpdate: () => {
                     this.drawLiquidThrottled(33); // 约 30fps 重绘，减轻交互卡顿

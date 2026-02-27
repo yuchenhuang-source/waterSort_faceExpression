@@ -50,6 +50,32 @@ export const SPLASH_TUBE_WIDTH_RATIO = 1.1;
 /** 水花位置垂直偏移补正：为水花高度的比例，正值向下（暂定 0.2 = 20%） */
 export const SPLASH_VERTICAL_OFFSET_RATIO = 0.2;
 
+/** 水花动画播放帧率，越大越快（默认 30） */
+export const SPLASH_FRAME_RATE = 60;
+
+/** 液体上升动画播放帧率，越大越快（默认 30） */
+export const LIQUID_UP_FRAME_RATE = 40;
+
+/** 小球选中飞起动画时长（ms），越小越快 */
+export const BALL_RISE_DURATION = 100;
+
+/** 小球落回试管动画时长（ms），越小越快 */
+export const BALL_DROP_DURATION = 60;
+
+/** 小球跨试管移动：已悬浮顶球快速调整时长（ms），越小越快 */
+export const BALL_MOVE_RISE_ALREADY_HOVER = 1;
+/** 小球跨试管移动：从试管内上升到试管口上方的时长（ms），越小越快 */
+export const BALL_MOVE_RISE_NORMAL = 100;
+
+/** 小球跨试管移动：弧线飞行时长（ms），越小越快 */
+export const BALL_MOVE_ARC_TIME = 60;
+
+/** 小球跨试管移动：每颗球启动的间隔（ms），用于多球联动 */
+export const BALL_MOVE_START_DELAY = 50;
+
+/** 试管内液体水平面上升动画时长（ms），球落定后水位渐升 */
+export const WATER_RISE_DURATION = 50;
+
 export const GAME_CONFIG = {
     TUBE_CAPACITY: 8,
     BALL_SPACING: 2,

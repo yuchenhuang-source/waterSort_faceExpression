@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { Tube } from './Tube';
 import { Ball } from './Ball';
-import { GAME_CONFIG, BALL_COLORS, BallColor } from '../constants/GameConstants';
+import { GAME_CONFIG, BALL_COLORS, BallColor, BALL_RISE_DURATION, BALL_DROP_DURATION, BALL_MOVE_RISE_ALREADY_HOVER, BALL_MOVE_RISE_NORMAL, BALL_MOVE_ARC_TIME, BALL_MOVE_START_DELAY } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
@@ -136,7 +136,7 @@ export class Board extends Phaser.GameObjects.Container {
         if (!this.boardLiquidMaskGraphics) return;
         this.boardLiquidMaskGraphics.clear();
         const config = this.scene.scale.height > this.scene.scale.width ? GAME_CONFIG.PORTRAIT : GAME_CONFIG.LANDSCAPE;
-        const radius = (config.TUBE_WIDTH - 4) / 4;
+        const radius = (config.TUBE_WIDTH - 4) / 2;
         const maskWidth = config.TUBE_WIDTH - 4;
         const maskHeight = config.TUBE_HEIGHT - 4;
         const totalWidth = (GAME_CONFIG.TUBE_COLS - 1) * config.COL_OFFSET_X;
@@ -1206,7 +1206,7 @@ export class Board extends Phaser.GameObjects.Container {
             this.scene.tweens.add({
                 targets: topBall,
                 y: topY,
-                duration: 200,
+                duration: BALL_RISE_DURATION,
                 ease: 'Power2',
                 onStart: () => {
                     // 上升时：若下方有相邻液体，在相邻液面播放水花（颜色为相邻液体颜色）
@@ -1236,7 +1236,7 @@ export class Board extends Phaser.GameObjects.Container {
                 this.scene.tweens.add({
                     targets: topBall,
                     y: targetY,
-                    duration: 180,
+                    duration: BALL_DROP_DURATION,
                     ease: 'Quad.easeIn',
                     onComplete: () => {
                         if (!topBall.scene || !tube.scene) return;
@@ -1318,7 +1318,7 @@ export class Board extends Phaser.GameObjects.Container {
             // 然后为每个球创建独立的移动动画
             ballsToMove.forEach((ball, index) => {
                 // ballsToMove[0] 是顶球，先启动
-                const startDelay = index * 100;
+                const startDelay = index * BALL_MOVE_START_DELAY;
                 
                 // 计算球在 target.balls 中的索引
                 // ballsToMove[0] (顶球，先动) -> 落在 originalBallCount 位置（新球中的最下面）
@@ -1339,10 +1339,9 @@ export class Board extends Phaser.GameObjects.Container {
                 // 计算球当前是否已在悬浮位置（顶部球）
                 const isAlreadyHovering = index === 0 && ball.y < 0;
                 
-                // 动画参数
-                const riseTime = isAlreadyHovering ? 50 : 150; // 已悬浮的球快速调整，其他球正常上升
-                const arcTime = 250; // 弧线移动时间
-                const dropTime = 350; // 下落时间
+                // 动画参数（时长可在 GameConstants 中调整）
+                const riseTime = isAlreadyHovering ? BALL_MOVE_RISE_ALREADY_HOVER : BALL_MOVE_RISE_NORMAL;
+                const arcTime = BALL_MOVE_ARC_TIME;
                 
                 // 使用连续的tween实现流畅动画
                 // 第一步：快速上升到源试管上方；该球开始上升时从源试管移除一层并刷新液面（分层更新）
@@ -1410,7 +1409,7 @@ export class Board extends Phaser.GameObjects.Container {
                                         this.scene.tweens.add({
                                             targets: ball,
                                             y: finalY,
-                                            duration: 180, // 再次加速下落
+                                            duration: BALL_DROP_DURATION, // 再次加速下落
                                             ease: 'Quad.easeIn',
                                             onComplete: () => {
                                                 if (!ball.scene || !target.scene) return;

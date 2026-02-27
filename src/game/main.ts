@@ -16,7 +16,7 @@ const config: Phaser.Types.Core.GameConfig = {
     transparent: true,
     parent: 'game-container',
     fps: {
-        target: 15,
+        target: 60,
     },
     scene: [
         Boot,
