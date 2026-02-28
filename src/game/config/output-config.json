@@ -32,8 +32,8 @@
     "handMoveTransition": 0.9
   },
   "gameHandGuide": {
-    "tapDuration": 200,
-    "tapRepeatDelay": 150,
+    "tapDuration": 300,
+    "tapRepeatDelay": 200,
     "moveDuration": 300,
     "fadeDuration": 200
   },
@@ -45,6 +45,6 @@
   "waterRiseLinear": {
     "ease": "Back.easeOut",
     "duration": 25,
-    "easeParams": [1.5]
+    "easeParams": [1]
   }
 }

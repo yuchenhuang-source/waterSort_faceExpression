@@ -64,11 +64,13 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 })
 
   useEffect(() => {
     let cancelled = false;
+    // 必须等 pregenerate 完成，确保 config 已加载且 cache 与游戏使用相同 emptyTubeCount
     waitForPregenerate()
       .then(async () => {
         if (cancelled) return;
         const emptyTubeCount = Math.max(1, Math.min(6, await getOutputConfigValueAsync<number>('emptyTubeCount', 2)));
         const cached = getCachedPuzzle(difficulty, emptyTubeCount);
+        // getLiquidColors 依赖 getOutputConfigAsync 的缓存，pregenerate 已先调用
         const liquidColors = getLiquidColors();
         const previewConfig: LevelPreviewConfig = (await getOutputConfigValueAsync<LevelPreviewConfig>('levelPreview')) ?? { scale: 1, translateX: 0, translateY: 0 };
         let tubes: { color: BallColor; count: number }[][];

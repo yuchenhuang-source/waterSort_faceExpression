@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { LIQUID_UP_FRAME_RATE, SPLASH_FRAME_RATE } from '../constants/GameConstants';
+import { BALL_EXPRESSION_FRAME_RATE, LIQUID_UP_FRAME_RATE, SPLASH_FRAME_RATE } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
@@ -293,11 +293,11 @@ export class Preloader extends Scene {
             repeat: 0
         });
 
-        // 2. 原地暂停 (Still) - 降低 frameRate 减轻每帧动画更新负担
+        // 2. 原地暂停 (Still) - 进一步降低 frameRate 以提升性能到60fps
         this.anims.create({
             key: 'liquid_still',
             frames: this.generateFrames('still', 11, 21),
-            frameRate: 15,
+            frameRate: 10, // 从15降至10fps，减少动画更新开销
             repeat: -1,
             yoyo: true
         });
@@ -358,15 +358,15 @@ export class Preloader extends Scene {
             repeat: -1
         });
 
-        // 创建圆球表情动画 (129帧) - 20fps 减轻更新负担
+        // 创建圆球表情动画 (331帧)
         const ballExpressionFrames: Phaser.Types.Animations.AnimationFrame[] = [];
-        for (let i = 0; i <= 128; i++) {
+        for (let i = 0; i <= 330; i++) {
             ballExpressionFrames.push({ key: `圆球表情_${String(i).padStart(5, '0')}` });
         }
         this.anims.create({
             key: 'ball_expression',
             frames: ballExpressionFrames,
-            frameRate: 20,
+            frameRate: BALL_EXPRESSION_FRAME_RATE,
             repeat: -1
         });
 

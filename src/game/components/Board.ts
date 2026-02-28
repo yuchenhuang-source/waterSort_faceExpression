@@ -265,7 +265,6 @@ export class Board extends Phaser.GameObjects.Container {
      */
     private initializeBallsWithPuzzle(result: PuzzleAdapterResult) {
         const tubeContents = result.tubes;
-        
         // 验证生成的谜题（传入配置的空试管数以正确校验）
         const validation = validatePuzzle(tubeContents, this.emptyTubeCount);
         if (!validation.valid && import.meta.env.DEV) {

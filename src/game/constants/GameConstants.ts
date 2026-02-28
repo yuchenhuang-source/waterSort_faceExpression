@@ -43,14 +43,17 @@ export const DEFAULT_LIQUID_COLORS: { [key in BallColor]: number } = {
 export const LIQUID_BALL_DISPLAY_WIDTH_RATIO = 1.2;
 
 /** 水球整体尺寸倍数，可调小水球：1.0 为默认，<1 缩小（如 0.8、0.9） */
-export const LIQUID_BALL_SIZE_SCALE = 1.3;
+export const LIQUID_BALL_SIZE_SCALE = 1.5;
 
 /** 圆球表情在小球上的位置偏移（相对小球中心），可调整：X 正值向右，Y 正值向下 */
 export const BALL_EXPRESSION_OFFSET_X = 0;
 export const BALL_EXPRESSION_OFFSET_Y = 0;
 
 /** 圆球表情在小球上的尺寸倍数，1.0 为默认，可调整：>1 放大，<1 缩小 */
-export const BALL_EXPRESSION_SCALE_RATIO = 0.9;
+export const BALL_EXPRESSION_SCALE_RATIO = 0.8;
+
+/** 圆球表情动画帧率，越大播放越快（默认 12） */
+export const BALL_EXPRESSION_FRAME_RATE = 25;
 
 /** 水花 displayWidth 相对试管宽度的比例，便于调试 */
 export const SPLASH_TUBE_WIDTH_RATIO = 1.1;
@@ -59,10 +62,10 @@ export const SPLASH_TUBE_WIDTH_RATIO = 1.1;
 export const SPLASH_VERTICAL_OFFSET_RATIO = 0.2;
 
 /** 水花动画播放帧率，越大越快（默认 30） */
-export const SPLASH_FRAME_RATE = 60;
+export const SPLASH_FRAME_RATE = 30;
 
 /** 液体上升动画播放帧率，越大越快（默认 30） */
-export const LIQUID_UP_FRAME_RATE = 40;
+export const LIQUID_UP_FRAME_RATE = 30;
 
 /** 小球选中飞起动画时长（ms），越小越快 */
 export const BALL_RISE_DURATION = 100;

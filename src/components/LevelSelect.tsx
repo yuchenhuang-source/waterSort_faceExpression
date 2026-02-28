@@ -178,7 +178,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
             <div className="game-icon-wrapper" style={{ ['--logo-scale' as string]: String(LOGO_SCALE) }}>
               <img src={icon} alt="Game Icon" className="game-icon placeholder-img" />
             </div>
-            <h2 className="game-title">Ball Sort</h2>
+            <h2 className="game-title">Water Sort</h2>
           </div>
           <button className="play-now-btn landscape-only" onClick={handlePlayNow}>
             <img src={playNowImg} alt="Play Now" className="play-now-bg" />

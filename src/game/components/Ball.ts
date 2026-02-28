@@ -3,8 +3,8 @@ import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SI
 import { getLiquidColors } from '../../utils/outputConfigLoader';
 
 export class Ball extends Phaser.GameObjects.Container {
-    // 光晕效果参数（3->1 减少每球 2 个 Sprite，提升流畅度）
-    private static readonly GLOW_LAYER_COUNT = 1;
+    // 光晕效果参数（优化性能：禁用光晕以提升到60fps）
+    private static readonly GLOW_LAYER_COUNT = 0; // 从1改为0，完全禁用光晕
     private static readonly GLOW_BASE_SCALE = 1.15; // 最内层光晕缩放倍数
     private static readonly GLOW_SCALE_STEP = 0.08; // 每层光晕的缩放增量
     private static readonly GLOW_BASE_ALPHA = 0.6; // 最内层光晕透明度
@@ -187,11 +187,16 @@ export class Ball extends Phaser.GameObjects.Container {
     }
 
     /**
-     * 设置光晕同步监听器
+     * 设置光晕同步监听器（优化：减少每帧同步开销）
      */
     private setupGlowSync() {
         // 移除之前的监听器（如果存在）
         this.liquidSprite.off('animationupdate');
+        
+        // 优化：仅在光晕可见时同步，减少不必要的帧更新
+        if (this.glowSprites.length === 0 || !this.glowSprites.some(s => s.visible)) {
+            return;
+        }
         
         // 添加新的监听器，实时同步所有光晕帧（使用 setCurrentFrame 按动画帧同步）
         this.liquidSprite.on('animationupdate', () => {
@@ -389,10 +394,11 @@ export class Ball extends Phaser.GameObjects.Container {
             this.containerHoverTween.stop();
             this.containerHoverTween = null;
         }
+        // 优化：减小浮动幅度和增加duration，降低tween更新频率
         this.containerHoverTween = this.scene.tweens.add({
             targets: this,
-            y: containerTopY - 10,
-            duration: 500,
+            y: containerTopY - 5, // 从-10改为-5，减小浮动幅度
+            duration: 800, // 从500增加到800ms，降低更新频率
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'

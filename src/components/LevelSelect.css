@@ -275,8 +275,19 @@
   .game-icon-wrapper { width: 15vmin; height: 15vmin; }
   .game-title { font-size: 6vmin; }
   .right-section { flex: 1; justify-content: flex-start; padding-top: 2vmin; }
-  .level-select-grid { gap: 3vmin; margin-bottom: 3vmin; flex-grow: 1; }
-  .level-card { width: 120px; height: 120px; }
+  .level-select-grid {
+    gap: 3vmin;
+    margin-bottom: 3vmin;
+    flex-grow: 1;
+    flex-wrap: nowrap;
+    flex-direction: row;
+  }
+  .level-card {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    height: 120px;
+  }
   .hand-icon { width: 15vmin; }
   .portrait-only { display: block; }
   .landscape-only { display: none; }

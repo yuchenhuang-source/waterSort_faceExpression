@@ -42,8 +42,10 @@ export function waitForPregenerate(): Promise<void> {
 
 /**
  * 应用启动时调用：每次游戏启动生成 3 个关卡（难度 1/5/9），供选关预览和游戏使用
+ * 防止重复执行：App useEffect 和 Preloader 的 waitForPregenerate 都可能触发，只执行一次
  */
 export function pregeneratePuzzles(): void {
+  if (_pregeneratePromise) return;
   _pregeneratePromise = getOutputConfigAsync()
     .then(async () => {
       const emptyTubeCount = Math.max(
