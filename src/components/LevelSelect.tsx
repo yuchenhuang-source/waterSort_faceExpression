@@ -5,6 +5,8 @@ import hand from '../assets/手.png';
 import chooseImg from '../assets/choose.png';
 import playNowImg from '../assets/play-now.png';
 import download from '../game/scenes/constants/download';
+import LevelPreview from './LevelPreview';
+import { getOutputConfigValueAsync } from '../utils/outputConfigLoader';
 
 export interface LevelSelectProps {
   onSelectLevel: (level: number) => void;
@@ -16,10 +18,12 @@ interface HandState {
   visible: boolean;
 }
 
-const HAND_CONFIG = {
+const DEFAULT_HAND_CONFIG = {
   moveDuration: 600,
   tapDuration: 500,
   idleDuration: 500,
+  handTapDuration: 0.32,
+  handMoveTransition: 0.9,
   offsetX: 0.82,
   offsetY: 0.78
 };
@@ -31,9 +35,9 @@ const LOGO_SCALE = 1.08;
 const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
   const levels = useMemo(
     () => [
-      { id: 1, image: icon, difficulty: 1 },
-      { id: 2, image: icon, difficulty: 5 },
-      { id: 3, image: icon, difficulty: 9 }
+      { id: 1, difficulty: 1 },
+      { id: 2, difficulty: 5 },
+      { id: 3, difficulty: 9 }
     ],
     []
   );
@@ -49,6 +53,13 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
   });
   const [currentCardIndex, setCurrentCardIndex] = useState<number>(-1);
   const [isSimulatingClick, setIsSimulatingClick] = useState(false);
+  const [handConfig, setHandConfig] = useState(DEFAULT_HAND_CONFIG);
+
+  useEffect(() => {
+    getOutputConfigValueAsync<typeof DEFAULT_HAND_CONFIG>('handAnimation').then(
+      (cfg) => cfg && setHandConfig({ ...DEFAULT_HAND_CONFIG, ...cfg })
+    );
+  }, []);
 
   const updateHandPosition = useCallback(
     (cardIndex: number) => {
@@ -63,9 +74,9 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
       const cardRect = cardEl.getBoundingClientRect();
 
       const targetLeft =
-        cardRect.left - gridRect.left + cardRect.width * HAND_CONFIG.offsetX;
+        cardRect.left - gridRect.left + cardRect.width * handConfig.offsetX;
       const targetTop =
-        cardRect.top - gridRect.top + cardRect.height * HAND_CONFIG.offsetY;
+        cardRect.top - gridRect.top + cardRect.height * handConfig.offsetY;
 
       setHandState({
         left: targetLeft,
@@ -76,7 +87,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
 
       return true;
     },
-    []
+    [handConfig]
   );
 
   useEffect(() => {
@@ -118,10 +129,10 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
 
           pauseTimer = window.setTimeout(
             () => runCycle(nextIndex),
-            HAND_CONFIG.idleDuration
+            handConfig.idleDuration
           );
-        }, HAND_CONFIG.tapDuration);
-      }, HAND_CONFIG.moveDuration);
+        }, handConfig.tapDuration);
+      }, handConfig.moveDuration);
     };
 
     kickoffTimer = window.setTimeout(
@@ -137,7 +148,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
       if (highlightTimer) window.clearTimeout(highlightTimer);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [levelCount, updateHandPosition]);
+  }, [levelCount, updateHandPosition, handConfig]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -205,18 +216,19 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
                   onClick={() => onSelectLevel(level.difficulty)}
                 >
                   <div className="level-image-wrapper">
-                    <img
-                      src={level.image}
-                      alt={`Level ${level.id}`}
-                      className="level-image placeholder-img"
-                    />
+                    <LevelPreview difficulty={level.difficulty} maxTubes={5} />
                   </div>
                 </div>
               );
             })}
             <div
               className={handPointerClassName}
-              style={{ left: handState.left, top: handState.top }}
+              style={{
+                left: handState.left,
+                top: handState.top,
+                ['--hand-move-transition' as string]: `${handConfig.handMoveTransition}s`,
+                ['--hand-tap-duration' as string]: `${handConfig.handTapDuration}s`
+              }}
             >
               <img src={hand} alt="Hand" className="hand-icon" />
             </div>

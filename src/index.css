@@ -28,6 +28,12 @@ canvas {
   align-items: center;
 }
 
+/* 选关显示时隐藏游戏画面，点击选关后才显示 */
+#app.level-select-visible #game-container {
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .mask {
   width: 100vw;
   height: 100vh;

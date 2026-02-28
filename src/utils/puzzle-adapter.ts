@@ -4,7 +4,7 @@
  */
 
 import { createPuzzle, GeneratorConfig } from './sort-puzzle-generator';
-import { BallColor, BALL_COLORS, GAME_CONFIG } from '../game/constants/GameConstants';
+import { BallColor, RESTRICTED_PALETTE, GAME_CONFIG } from '../game/constants/GameConstants';
 
 /**
  * 适配器配置接口
@@ -57,8 +57,8 @@ export function generatePuzzleWithAdapter(config: PuzzleAdapterConfig): PuzzleAd
         shuffleMultiplier = 1.0
     } = config;
     
-    // 1. 计算派生参数
-    const colorCount = Math.min(12, Math.max(3, difficulty + 2)); // 3-12种颜色
+    // 1. 计算派生参数（仅使用 4 色调色板）
+    const colorCount = Math.min(4, Math.max(3, difficulty + 2)); // 3-4 种颜色
     const totalTubes = GAME_CONFIG.TUBE_COUNT;  // 14 (总管数固定)
     // 空管数量限制在合理范围 (1-6)，确保至少有8个满管
     const actualEmptyTubes = Math.min(6, Math.max(1, emptyTubeCount));
@@ -160,8 +160,8 @@ function calculateColorDistribution(colorCount: number, filledTubes: number): nu
  * 使用确定性方法确保相同seed产生相同颜色组合
  */
 function selectColors(colorCount: number, seed: number): BallColor[] {
-    // 使用简单的确定性打乱
-    const colors = [...BALL_COLORS];
+    // 仅使用 4 色调色板（红、绿、蓝、黄）
+    const colors = [...RESTRICTED_PALETTE];
     
     // Fisher-Yates shuffle with seeded random
     let t = seed >>> 0;

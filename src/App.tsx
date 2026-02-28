@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { IRefPhaserGame, PhaserGame } from './game/PhaserGame';
 import LevelSelect from './components/LevelSelect';
+import FpsDisplay from './components/FpsDisplay';
 import './index.css';
 import { Start } from './viewable-handler';
 import { EventBus } from './game/EventBus';
@@ -68,9 +69,10 @@ function App() {
     };
 
     return (
-        <div id="app" style={{ backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        <div id="app" className={levelSelectVisible ? 'level-select-visible' : ''} style={{ backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
             <PhaserGame ref={phaserRef} currentActiveScene={currentScene} />
             {levelSelectVisible && <LevelSelect onSelectLevel={handleSelectLevel} />}
+            <FpsDisplay />
         </div>
     );
 }

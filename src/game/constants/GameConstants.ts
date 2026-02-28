@@ -15,20 +15,28 @@ export enum BallColor {
 
 export const BALL_COLORS = Object.values(BallColor);
 
+/** 游戏仅使用的 4 色调色板：红、绿、蓝、黄 */
+export const RESTRICTED_PALETTE: BallColor[] = [
+  BallColor.RED,
+  BallColor.GREEN,
+  BallColor.BLUE,
+  BallColor.YELLOW,
+];
+
 /** 液体颜色默认色值（可被 output-config.json 的 liquidColors 覆盖） */
 export const DEFAULT_LIQUID_COLORS: { [key in BallColor]: number } = {
-    [BallColor.BROWN]: 0x8B5A2B,
-    [BallColor.ORANGE]: 0xFFA500,
-    [BallColor.LIGHT_PURPLE]: 0xC8A2FF,
-    [BallColor.GRAY]: 0xB4B4B4,
-    [BallColor.PINK]: 0xFFB6C1,
-    [BallColor.PURPLE]: 0x9333EA,
-    [BallColor.RED]: 0xFF5050,
-    [BallColor.GREEN]: 0x32CD32,
-    [BallColor.FLUORESCENT_GREEN]: 0x00FF7F,
-    [BallColor.BLUE]: 0x6495ED,
-    [BallColor.CYAN]: 0x00FFFF,
-    [BallColor.YELLOW]: 0xFFFF00
+    [BallColor.BROWN]: 0xDB0D0A,
+    [BallColor.ORANGE]: 0x80B903,
+    [BallColor.LIGHT_PURPLE]: 0x057ED5,
+    [BallColor.GRAY]: 0xF4B30B,
+    [BallColor.PINK]: 0xDB0D0A,
+    [BallColor.PURPLE]: 0x80B903,
+    [BallColor.RED]: 0xDB0D0A,
+    [BallColor.GREEN]: 0x80B903,
+    [BallColor.FLUORESCENT_GREEN]: 0x057ED5,
+    [BallColor.BLUE]: 0x057ED5,
+    [BallColor.CYAN]: 0xF4B30B,
+    [BallColor.YELLOW]: 0xF4B30B
 };
 
 /** 液体球帧动画的 displayWidth 相对试管 displayWidth 的比例，便于调试 */

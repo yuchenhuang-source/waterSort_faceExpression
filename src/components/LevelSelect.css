@@ -126,6 +126,8 @@
 }
 
 .level-card {
+  width: 120px;
+  height: 120px;
   border-radius: 2vmin;
   overflow: hidden;
   cursor: pointer;
@@ -133,6 +135,7 @@
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
   background: #fff;
   border: 0.5vmin solid #fff;
+  flex-shrink: 0;
 }
 
 .level-card.is-highlighted {
@@ -179,6 +182,8 @@
 }
 
 .hand-pointer {
+  --hand-move-transition: 0.9s;
+  --hand-tap-duration: 0.32s;
   position: absolute;
   top: 0;
   left: 0;
@@ -187,8 +192,8 @@
   opacity: 0;
   transform: translate(-55%, -20%) rotate(-6deg);
   transition:
-    top 0.9s cubic-bezier(0.4, 0, 0.2, 1),
-    left 0.9s cubic-bezier(0.4, 0, 0.2, 1),
+    top var(--hand-move-transition) cubic-bezier(0.4, 0, 0.2, 1),
+    left var(--hand-move-transition) cubic-bezier(0.4, 0, 0.2, 1),
     opacity 0.3s ease-in-out;
   will-change: top, left;
 }
@@ -198,7 +203,7 @@
 }
 
 .hand-pointer.is-tapping .hand-icon {
-  animation: hand-tap 0.32s ease-in-out;
+  animation: hand-tap var(--hand-tap-duration) ease-in-out;
 }
 
 .hand-icon {
@@ -255,9 +260,10 @@
 
 @media (orientation: landscape) {
   .level-select-content { flex-direction: row; }
-  .left-section { display: flex; }
-  .level-select-grid { flex-direction: row; gap: 2.5vmin; }
-  .level-card { height: 50vmin; }
+  .left-section { display: flex; flex-shrink: 0; }
+  .right-section { min-width: 0; }
+  .level-select-grid { flex-direction: row; gap: 2.5vmin; flex: 1; min-width: 0; flex-wrap: nowrap; }
+  .level-card { width: 120px; height: 120px; }
   .hand-icon { width: 12vmin; }
   .portrait-only { display: none; }
   .landscape-only { display: block; }
@@ -270,7 +276,7 @@
   .game-title { font-size: 6vmin; }
   .right-section { flex: 1; justify-content: flex-start; padding-top: 2vmin; }
   .level-select-grid { gap: 3vmin; margin-bottom: 3vmin; flex-grow: 1; }
-  .level-card { width: 27vmin; height: 30vh; }
+  .level-card { width: 120px; height: 120px; }
   .hand-icon { width: 15vmin; }
   .portrait-only { display: block; }
   .landscape-only { display: none; }

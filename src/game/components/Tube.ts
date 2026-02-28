@@ -2,7 +2,7 @@ import { Scene } from 'phaser';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
 import { Ball } from './Ball';
 import { BallColor, BALL_RISE_DURATION, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO, WATER_RISE_DURATION } from '../constants/GameConstants';
-import { getLiquidColors } from '../../utils/outputConfigLoader';
+import { getLiquidColors, getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
 
@@ -33,6 +33,8 @@ export class Tube extends Phaser.GameObjects.Container {
     private waterRiseTween: Phaser.Tweens.Tween | null = null;
     /** 当前水位渐升伴随的水花精灵，取消时需销毁 */
     private waterRiseSplashSprite: Phaser.GameObjects.Sprite | null = null;
+    /** 多球同时落入时排队：上一段未播完则入队，播完后再播下一段 */
+    private waterRiseQueue: Array<{ color: BallColor; onComplete?: () => void; isReturn?: boolean; isLast: boolean }> = [];
     /** 仅归位时：上升动画开始时在相邻液体层顶部添加的与上升液体同色的 surface sprite，动画结束时销毁 */
     private returnBoundarySurfaceSprite: Phaser.GameObjects.Sprite | null = null;
     /** 当前是否为归位引起的水位上升（用于 drawLiquid 中不显示 addingBlockBottomSurfaceSprite） */
@@ -886,8 +888,13 @@ export class Tube extends Phaser.GameObjects.Container {
      * @param color 新加入液体的颜色
      * @param onComplete 水位升完后的回调（可做 checkCompletion、层级调整等）
      * @param isReturn 是否为归位动画（仅归位时在相邻液体层顶部添加与上升液体同色的 surface sprite）
+     * @param isLast 是否为最后一个（最上面）落入的液体；true 使用 waterRise 配置，false 使用 waterRiseLinear 配置
      */
-    public animateWaterRiseWithSplash(color: BallColor, onComplete?: () => void, isReturn?: boolean): void {
+    public animateWaterRiseWithSplash(color: BallColor, onComplete?: () => void, isReturn?: boolean, isLast: boolean = true): void {
+        if (this.waterRiseTween != null) {
+            this.waterRiseQueue.push({ color, onComplete, isReturn, isLast });
+            return;
+        }
         const unitHeight = this.currentBallSize + this.currentBallSpacing;
         const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         const startSurfaceY = bottomY - (this.balls.length - 1) * unitHeight; // 新块未长高时的液面 Y = 相邻液体层顶部
@@ -935,35 +942,61 @@ export class Tube extends Phaser.GameObjects.Container {
         });
         this.waterRiseSplashSprite = splashSprite;
 
-        // 延迟一帧再启动 tween，确保首帧用 addingBallHeight=0 绘制的液面（含下边缘 surface）先被渲染
-        this.scene.time.delayedCall(0, () => {
-            if (this.waterRiseTween != null || this.addingBallColor === null) return; // 已被取消
-            this.waterRiseTween = this.scene.tweens.add({
-                targets: this,
-                addingBallHeight: unitHeight,
-                duration: WATER_RISE_DURATION,
-                ease: 'Quad.easeOut',
-                onUpdate: () => {
-                    this.drawLiquidThrottled(33); // 约 30fps 重绘，减轻交互卡顿
-                    const surfaceY = startSurfaceY - this.addingBallHeight;
-                    splashSprite.setPosition(0, surfaceY + splashSprite.displayHeight * SPLASH_VERTICAL_OFFSET_RATIO);
-                },
-                onComplete: () => {
-                    this.waterRiseTween = null;
-                    this.waterRiseSplashSprite = null;
-                    this.addingBallColor = null;
-                    this.addingBallHeight = 0;
-                    if (this._isReturnWaterRise) {
-                        this._isReturnWaterRise = false;
-                        if (this.returnBoundarySurfaceSprite && this.returnBoundarySurfaceSprite.scene) {
-                            this.returnBoundarySurfaceSprite.destroy();
-                            this.returnBoundarySurfaceSprite = null;
+        // 非最后一个落入的液体用 waterRiseLinear，最后一个（最上面）用 waterRise
+        const configKey = isLast ? 'waterRise' : 'waterRiseLinear';
+        const defaultEase = isLast ? 'Quad.easeOut' : 'Linear';
+        getOutputConfigValueAsync<{ ease?: string; duration?: number; easeParams?: number[] }>(configKey).then((cfg) => {
+            const ease = (cfg?.ease as string) ?? defaultEase;
+            const duration = cfg?.duration ?? WATER_RISE_DURATION;
+            const easeParams = Array.isArray(cfg?.easeParams) ? cfg.easeParams : undefined;
+            // 延迟一帧再启动 tween，确保首帧用 addingBallHeight=0 绘制的液面（含下边缘 surface）先被渲染
+            this.scene.time.delayedCall(0, () => {
+                if (this.waterRiseTween != null || this.addingBallColor === null) return; // 已被取消
+                this.waterRiseTween = this.scene.tweens.add({
+                    targets: this,
+                    addingBallHeight: unitHeight,
+                    duration,
+                    ease,
+                    ...(easeParams && easeParams.length > 0 ? { easeParams } : {}),
+                    onUpdate: () => {
+                        this.drawLiquidThrottled(33); // 约 30fps 重绘，减轻交互卡顿
+                        const surfaceY = startSurfaceY - this.addingBallHeight;
+                        splashSprite.setPosition(0, surfaceY + splashSprite.displayHeight * SPLASH_VERTICAL_OFFSET_RATIO);
+                        // 水面高度 tween：每帧更新液面 sprite 位置，使水面上升更平滑（不依赖节流后的 drawLiquid）
+                        const hideTopSurface = this._isReturnWaterRise && this.addingBallHeight <= 0;
+                        if (this.surfaceSprite.visible !== !hideTopSurface) this.surfaceSprite.setVisible(!hideTopSurface);
+                        if (!hideTopSurface) this.surfaceSprite.setPosition(0, surfaceY);
+                        if (this.addingBlockBottomSurfaceSprite && this.addingBallColor !== null && !this._isReturnWaterRise) {
+                            this.addingBlockBottomSurfaceSprite.setVisible(true);
+                            this.addingBlockBottomSurfaceSprite.setPosition(0, surfaceY);
+                        }
+                        if (this.returnBoundarySurfaceSprite && this._isReturnWaterRise) {
+                            this.returnBoundarySurfaceSprite.setPosition(0, surfaceY);
+                        }
+                    },
+                    onComplete: () => {
+                        this.waterRiseTween = null;
+                        this.waterRiseSplashSprite = null;
+                        this.addingBallColor = null;
+                        this.addingBallHeight = 0;
+                        if (this._isReturnWaterRise) {
+                            this._isReturnWaterRise = false;
+                            if (this.returnBoundarySurfaceSprite && this.returnBoundarySurfaceSprite.scene) {
+                                this.returnBoundarySurfaceSprite.destroy();
+                                this.returnBoundarySurfaceSprite = null;
+                            }
+                        }
+                        this.requestDrawLiquid();
+                        onComplete?.();
+                        const next = this.waterRiseQueue.shift();
+                        if (next) {
+                            this.scene.time.delayedCall(0, () => {
+                                this.animateWaterRiseWithSplash(next.color, next.onComplete, next.isReturn, next.isLast);
+                            });
                         }
                     }
-                    this.requestDrawLiquid();
-                    onComplete?.();
-                }
-            });
+                });
+        });
         });
     }
 
@@ -975,6 +1008,7 @@ export class Tube extends Phaser.GameObjects.Container {
             this.waterRiseTween.stop();
             this.waterRiseTween = null;
         }
+        this.waterRiseQueue.length = 0;
         if (this.waterRiseSplashSprite && this.waterRiseSplashSprite.scene) {
             this.waterRiseSplashSprite.destroy();
             this.waterRiseSplashSprite = null;

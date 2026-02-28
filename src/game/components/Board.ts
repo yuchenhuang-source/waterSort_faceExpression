@@ -33,8 +33,20 @@ export class Board extends Phaser.GameObjects.Container {
     private isGameActive: boolean = false;
     private idleTimer: number = 0;
     private static readonly IDLE_HINT_DELAY = 5000; // 5秒无操作后显示引导
-    private static readonly FADE_DURATION = 200; // 淡入淡出时长
-    
+
+    /** 游戏内手指引导动画配置（从 output-config.gameHandGuide 读取，未配置时用默认值） */
+    private handGuideConfig: {
+        tapDuration: number;
+        tapRepeatDelay: number;
+        moveDuration: number;
+        fadeDuration: number;
+    } = {
+        tapDuration: 300,
+        tapRepeatDelay: 200,
+        moveDuration: 300,
+        fadeDuration: 200
+    };
+
     // 引导系统状态
     private hintSourceTube: Tube | null = null;  // 引导的源试管
     private hintTargetTube: Tube | null = null;  // 引导的目标试管
@@ -67,7 +79,10 @@ export class Board extends Phaser.GameObjects.Container {
         }
         
         this.createHand();
-        
+        getOutputConfigValueAsync<typeof this.handGuideConfig>('gameHandGuide').then(
+            cfg => cfg && Object.assign(this.handGuideConfig, cfg)
+        );
+
         // 监听窗口大小变化
         scene.scale.on('resize', this.handleResize, this);
         this.handleResize(scene.scale.gameSize);
@@ -1102,15 +1117,16 @@ export class Board extends Phaser.GameObjects.Container {
         
         // 手指动画：模拟点击下压效果
         // 向下移动 + 轻微缩小 + 轻微旋转
+        const { tapDuration, tapRepeatDelay } = this.handGuideConfig;
         this.handTween = this.scene.tweens.add({
             targets: this.hand,
             y: this.handBaseY + pressDistance,   // 向下移动
             scale: baseScale * 0.95,             // 轻微缩小
             angle: 5,                            // 轻微顺时针旋转
-            duration: 300,
+            duration: tapDuration,
             yoyo: true,
             repeat: -1,
-            repeatDelay: 200,                    // 点击之间的间隔
+            repeatDelay: tapRepeatDelay,         // 点击之间的间隔
             ease: 'Sine.easeInOut'
         });
     }
@@ -1418,6 +1434,7 @@ export class Board extends Phaser.GameObjects.Container {
                                                 target.balls.splice(ballIndexInTarget, 0, ball);
                                                 ball.setLiquidState('hidden');
                                                 this.scene.sound.play('落下');
+                                                const isLastBall = index === ballsToMove.length - 1;
                                                 target.animateWaterRiseWithSplash(ball.color, () => {
                                                     if (!ball.scene || !target.scene) return;
                                                     // @ts-ignore
@@ -1435,7 +1452,7 @@ export class Board extends Phaser.GameObjects.Container {
                                                         this.checkWinCondition();
                                                     };
                                                     this.scene.time.delayedCall(0, checkCompletionAndWin, [], this);
-                                                });
+                                                }, false, isLastBall);
                                             }
                                         });
                                     }
@@ -1763,11 +1780,12 @@ export class Board extends Phaser.GameObjects.Container {
         }
         
         // 平滑移动到目标位置
+        const { moveDuration } = this.handGuideConfig;
         this.handMoveTween = this.scene.tweens.add({
             targets: this.hand,
             x: globalPos.x,
             y: globalPos.y,
-            duration: 300,
+            duration: moveDuration,
             ease: 'Power2',
             onComplete: () => {
                 // 移动完成后更新基准Y位置并重启点击动画
@@ -1793,10 +1811,11 @@ export class Board extends Phaser.GameObjects.Container {
         this.hand.setVisible(true);
         this.startHandAnimation();
         
+        const { fadeDuration } = this.handGuideConfig;
         this.handFadeTween = this.scene.tweens.add({
             targets: this.hand,
             alpha: 1,
-            duration: Board.FADE_DURATION,
+            duration: fadeDuration,
             ease: 'Power2'
         });
     }
@@ -1819,10 +1838,11 @@ export class Board extends Phaser.GameObjects.Container {
             this.handMoveTween = null;
         }
         
+        const { fadeDuration } = this.handGuideConfig;
         this.handFadeTween = this.scene.tweens.add({
             targets: this.hand,
             alpha: 0,
-            duration: Board.FADE_DURATION,
+            duration: fadeDuration,
             ease: 'Power2',
             onComplete: () => {
                 if (this.hand) {
