@@ -1,0 +1,159 @@
+.device-simulator {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a2e;
+  z-index: 9998;
+}
+
+.device-simulator-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #16213e;
+  border-bottom: 1px solid #0f3460;
+  flex-wrap: wrap;
+}
+
+.device-simulator-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #eee;
+}
+
+.device-simulator-toolbar input[type="number"] {
+  width: 64px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #0f3460;
+  background: #0f3460;
+  color: #eee;
+  font-size: 13px;
+}
+
+.device-simulator-toolbar input[type="number"]:focus {
+  outline: 1px solid #00d9ff;
+}
+
+.sim-rotate-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #00d9ff;
+  color: #1a1a2e;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.sim-rotate-btn:hover {
+  background: #00b8d9;
+}
+
+.sim-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sim-scale input[type="range"] {
+  width: 80px;
+}
+
+.sim-scale span {
+  font-size: 12px;
+  color: #888;
+  min-width: 36px;
+}
+
+.sim-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sim-preset-btn {
+  padding: 4px 10px;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  background: #0f3460;
+  color: #00d9ff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sim-preset-btn:hover {
+  background: #16213e;
+  border-color: #00d9ff;
+}
+
+.sim-popup-btn {
+  padding: 6px 12px;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  background: #0f3460;
+  color: #00d9ff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sim-popup-btn:hover {
+  background: #16213e;
+  border-color: #00d9ff;
+}
+
+.sim-fullscreen-link {
+  margin-left: 4px;
+  font-size: 12px;
+  color: #00d9ff;
+  text-decoration: none;
+}
+
+.sim-fullscreen-link:hover {
+  text-decoration: underline;
+}
+
+.simulator-entry-btn {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 9999;
+  padding: 8px 14px;
+  background: #00d9ff;
+  color: #1a1a2e;
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.simulator-entry-btn:hover {
+  background: #00b8d9;
+}
+
+.device-simulator-frame {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+}
+
+.device-simulator-iframe-wrapper {
+  flex-shrink: 0;
+}
+
+.device-simulator-iframe {
+  border: 2px solid #0f3460;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  display: block;
+  background: #000;
+}

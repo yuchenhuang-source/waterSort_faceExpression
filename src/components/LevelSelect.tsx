@@ -7,6 +7,7 @@ import playNowImg from '../assets/play-now.png';
 import download from '../game/scenes/constants/download';
 import LevelPreview from './LevelPreview';
 import { getOutputConfigValueAsync } from '../utils/outputConfigLoader';
+import { UI_CONFIG } from '../game/constants/GameConstants';
 
 export interface LevelSelectProps {
   onSelectLevel: (level: number) => void;
@@ -31,8 +32,25 @@ const DEFAULT_HAND_CONFIG = {
 /** logo 缩放倍数：>1 放大，<1 缩小，容器框大小不变 */
 const LOGO_SCALE = 1.08;
 
+function getPreviewSize(): number {
+  if (typeof window === 'undefined') return 120;
+  const isPortrait = window.innerHeight > window.innerWidth;
+  const ratio = isPortrait
+    ? (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_SIZE_RATIO_PORTRAIT ?? 0.15)
+    : (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_SIZE_RATIO_LANDSCAPE ?? 0.15);
+  return Math.round(window.innerWidth * ratio);
+}
+
 /** 与 dof 竖版选关页面一致，3 个假关卡对应难度 1/5/9 */
 const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
+  const [previewSize, setPreviewSize] = useState(getPreviewSize);
+
+  useEffect(() => {
+    const onResize = () => setPreviewSize(getPreviewSize());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const levels = useMemo(
     () => [
       { id: 1, difficulty: 1 },
@@ -214,6 +232,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
                     levelRefs.current[index] = el;
                   }}
                   onClick={() => onSelectLevel(level.difficulty)}
+                  style={{ width: previewSize, height: previewSize }}
                 >
                   <div className="level-image-wrapper">
                     <LevelPreview difficulty={level.difficulty} maxTubes={5} />

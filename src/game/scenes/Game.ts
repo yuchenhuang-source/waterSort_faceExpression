@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
 import { Board } from '../components/Board';
+import { UI_CONFIG } from '../constants/GameConstants';
 import { isPerfEnabled, initPerf, recordBoardUpdate, tickPerf } from '../../utils/perfLogger';
 import download from './constants/download';
 import { getOutputConfigAsync } from '../../utils/outputConfigLoader';
@@ -331,34 +332,24 @@ export class Game extends Scene
         if (isPortrait) {
             // 竖屏: 1080 x 2160
             this.scale.setGameSize(1080, 2160);
-            // 更新下载按钮位置
+            const ui = UI_CONFIG.DOWNLOAD_BTN.PORTRAIT;
             if (this.downloadBtnContainer) {
-                this.downloadBtnContainer.setPosition(1080 / 2, 2160 - 200);
+                this.downloadBtnContainer.setPosition(ui.x, ui.y);
             }
-            // 更新icon位置（左上角，留20px边距）
+            const icon = UI_CONFIG.ICON.PORTRAIT;
             if (this.iconBtn) {
-                this.iconBtn.setPosition(20, 20);
+                this.iconBtn.setPosition(icon.x, icon.y);
             }
         } else {
             // 横屏: 2160 x 1080
             this.scale.setGameSize(2160, 1080);
-            
-            // 计算游戏区域试管底部位置
-            // 游戏区域居中，两行试管
-            // startY = (1080 - 500) / 2 = 290
-            // 第二行Y = 290 + 500 = 790
-            // 试管高度 = 432，底部 = 790 + 432/2 = 1006
-            const tubeBottomY = 290 + 500 + 432 / 2; // = 1006
-            
-            // 更新下载按钮位置，底部与试管底部对齐
-            if (this.downloadBtnContainer && this.downloadBtn) {
-                const btnHeight = this.downloadBtn.displayHeight;
-                const btnCenterY = tubeBottomY - btnHeight / 2;
-                this.downloadBtnContainer.setPosition(2160 - 240, btnCenterY);
+            const ui = UI_CONFIG.DOWNLOAD_BTN.LANDSCAPE;
+            if (this.downloadBtnContainer) {
+                this.downloadBtnContainer.setPosition(ui.x, ui.y);
             }
-            // 更新icon位置（左上角，留20px边距）
+            const icon = UI_CONFIG.ICON.LANDSCAPE;
             if (this.iconBtn) {
-                this.iconBtn.setPosition(20, 20);
+                this.iconBtn.setPosition(icon.x, icon.y);
             }
         }
         
@@ -401,14 +392,15 @@ export class Game extends Scene
         };
 
         // 添加icon图片（缩小到1/2）
-        const icon = this.add.image(0, -80, 'icon');
+        const iconOffsetY = UI_CONFIG.POPUP.ICON_OFFSET_Y;
+        const icon = this.add.image(0, iconOffsetY, 'icon');
         icon.setScale(0.5);
         icon.setInteractive();
         icon.on('pointerdown', handleClick);
         this.victoryPopup.add(icon);
 
         // 添加download按钮容器（调整位置适应缩小后的icon）
-        const downloadBtnY = (icon.height * 0.5) / 2 + 50;
+        const downloadBtnY = (icon.height * 0.5) / 2 + UI_CONFIG.POPUP.DOWNLOAD_BTN_OFFSET_Y;
         const downloadBtnContainer = this.add.container(0, downloadBtnY);
         
         // 目标尺寸（原 download.png 的尺寸）
@@ -507,14 +499,15 @@ export class Game extends Scene
         };
 
         // 添加icon图片（缩小到1/2）
-        const icon = this.add.image(0, -80, 'icon');
+        const iconOffsetY = UI_CONFIG.POPUP.ICON_OFFSET_Y;
+        const icon = this.add.image(0, iconOffsetY, 'icon');
         icon.setScale(0.5);
         icon.setInteractive();
         icon.on('pointerdown', handleClick);
         this.victoryPopup.add(icon);
 
         // 添加download按钮容器（调整位置适应缩小后的icon）
-        const downloadBtnY = (icon.height * 0.5) / 2 + 50;
+        const downloadBtnY = (icon.height * 0.5) / 2 + UI_CONFIG.POPUP.DOWNLOAD_BTN_OFFSET_Y;
         const downloadBtnContainer2 = this.add.container(0, downloadBtnY);
         
         // 目标尺寸（原 download.png 的尺寸）
