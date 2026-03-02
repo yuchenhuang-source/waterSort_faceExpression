@@ -6,7 +6,6 @@ import chooseImg from '../assets/choose.png';
 import playNowImg from '../assets/play-now.png';
 import download from '../game/scenes/constants/download';
 import LevelPreview from './LevelPreview';
-import { getOutputConfigValueAsync } from '../utils/outputConfigLoader';
 import { UI_CONFIG } from '../game/constants/GameConstants';
 
 export interface LevelSelectProps {
@@ -19,31 +18,25 @@ interface HandState {
   visible: boolean;
 }
 
-const DEFAULT_HAND_CONFIG = {
-  moveDuration: 600,
-  tapDuration: 500,
-  idleDuration: 500,
-  handTapDuration: 0.32,
-  handMoveTransition: 0.9,
-  offsetX: 0.82,
-  offsetY: 0.78
-};
-
-/** logo 缩放倍数：>1 放大，<1 缩小，容器框大小不变 */
-const LOGO_SCALE = 1.08;
-
-function getPreviewSize(): number {
-  if (typeof window === 'undefined') return 120;
+/** width 根据视口适配，height 可配置 */
+function getPreviewSize(): { width: number; height: number } {
+  if (typeof window === 'undefined') return { width: 120, height: 180 };
   const isPortrait = window.innerHeight > window.innerWidth;
-  const ratio = isPortrait
-    ? (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_SIZE_RATIO_PORTRAIT ?? 0.15)
-    : (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_SIZE_RATIO_LANDSCAPE ?? 0.15);
-  return Math.round(window.innerWidth * ratio);
+  const widthRatio = isPortrait
+    ? (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_WIDTH_RATIO_PORTRAIT ?? 0.15)
+    : (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_WIDTH_RATIO_LANDSCAPE ?? 0.15);
+  const width = Math.round(window.innerWidth * widthRatio);
+  const height = isPortrait
+    ? (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_HEIGHT_PORTRAIT ?? 180)
+    : (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_HEIGHT_LANDSCAPE ?? 120);
+  return { width, height };
 }
 
 /** 与 dof 竖版选关页面一致，3 个假关卡对应难度 1/5/9 */
 const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
   const [previewSize, setPreviewSize] = useState(getPreviewSize);
+  const previewWidth = previewSize.width;
+  const previewHeight = previewSize.height;
 
   useEffect(() => {
     const onResize = () => setPreviewSize(getPreviewSize());
@@ -71,13 +64,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
   });
   const [currentCardIndex, setCurrentCardIndex] = useState<number>(-1);
   const [isSimulatingClick, setIsSimulatingClick] = useState(false);
-  const [handConfig, setHandConfig] = useState(DEFAULT_HAND_CONFIG);
-
-  useEffect(() => {
-    getOutputConfigValueAsync<typeof DEFAULT_HAND_CONFIG>('handAnimation').then(
-      (cfg) => cfg && setHandConfig({ ...DEFAULT_HAND_CONFIG, ...cfg })
-    );
-  }, []);
+  const handConfig = UI_CONFIG.HAND_ANIMATION;
 
   const updateHandPosition = useCallback(
     (cardIndex: number) => {
@@ -105,7 +92,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
 
       return true;
     },
-    [handConfig]
+    []
   );
 
   useEffect(() => {
@@ -129,6 +116,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
         return;
       }
 
+      // 手指移动到位 → 等待 waitAfterMove → 点击
       moveTimer = window.setTimeout(() => {
         setIsSimulatingClick(true);
         highlightTimer = window.setTimeout(() => {
@@ -150,7 +138,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
             handConfig.idleDuration
           );
         }, handConfig.tapDuration);
-      }, handConfig.moveDuration);
+      }, handConfig.moveDuration + (handConfig.waitAfterMove ?? 0));
     };
 
     kickoffTimer = window.setTimeout(
@@ -166,7 +154,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
       if (highlightTimer) window.clearTimeout(highlightTimer);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [levelCount, updateHandPosition, handConfig]);
+  }, [levelCount, updateHandPosition]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -192,8 +180,13 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
     <div className="level-select-container">
       <div className="level-select-content">
         <div className="left-section">
-          <div className="game-logo-section">
-            <div className="game-icon-wrapper" style={{ ['--logo-scale' as string]: String(LOGO_SCALE) }}>
+          <div
+            className="game-logo-section"
+            style={{
+              transform: `translate(${UI_CONFIG?.LEVEL_SELECT?.LOGO_OFFSET_X ?? 0}px, ${UI_CONFIG?.LEVEL_SELECT?.LOGO_OFFSET_Y ?? 0}px)`
+            }}
+          >
+            <div className="game-icon-wrapper" style={{ ['--logo-scale' as string]: String(UI_CONFIG?.LEVEL_SELECT?.LOGO_SCALE ?? 1.08) }}>
               <img src={icon} alt="Game Icon" className="game-icon placeholder-img" />
             </div>
             <h2 className="game-title">Water Sort</h2>
@@ -224,6 +217,11 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
                 .filter(Boolean)
                 .join(' ');
 
+              const ls = UI_CONFIG?.LEVEL_SELECT;
+              const borderWidth = ls?.PREVIEW_BORDER_WIDTH ?? 2;
+              const borderColor = ls?.PREVIEW_BORDER_COLOR ?? '#ffffff';
+              const borderRadius = ls?.PREVIEW_BORDER_RADIUS ?? 8;
+
               return (
                 <div
                   key={level.id}
@@ -232,7 +230,12 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
                     levelRefs.current[index] = el;
                   }}
                   onClick={() => onSelectLevel(level.difficulty)}
-                  style={{ width: previewSize, height: previewSize }}
+                  style={{
+                    width: previewWidth,
+                    height: previewHeight,
+                    border: `${borderWidth}px solid ${borderColor}`,
+                    borderRadius: `${borderRadius}px`
+                  }}
                 >
                   <div className="level-image-wrapper">
                     <LevelPreview difficulty={level.difficulty} maxTubes={5} />

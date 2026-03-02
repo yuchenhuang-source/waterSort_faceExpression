@@ -126,40 +126,41 @@
 }
 
 .level-card {
+  position: relative;
   width: 120px; /* fallback, overridden by inline style */
   height: 120px;
-  border-radius: 2vmin;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transform-origin: center center;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
   background: #fff;
-  border: 0.5vmin solid #fff;
+  /* border、border-radius 由 inline style 从配置注入 */
   flex-shrink: 0;
 }
 
 .level-card.is-highlighted {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  z-index: 5;
 }
 
-.level-card.is-highlighted .level-image {
+.level-card.is-highlighted .level-image-wrapper > * {
   transform: scale(1.25);
 }
 
 .level-card.is-pressed {
-  transform: translateY(0.2vmin);
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
 }
 
-.level-card:active .level-image {
-  transform: scale(1);
+.level-card.is-pressed .level-image-wrapper > * {
+  transform: scale(1.25);
 }
 
 .level-card:hover:not(.is-pressed) {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
 }
 
-.level-card:hover:not(.is-pressed) .level-image {
+.level-card:hover:not(.is-pressed) .level-image-wrapper > * {
   transform: scale(1.08);
 }
 
@@ -169,6 +170,11 @@
   overflow: hidden;
   position: relative;
   background: #000;
+}
+
+.level-image-wrapper > * {
+  transition: transform 0.3s ease;
+  transform-origin: center center;
 }
 
 .level-image {

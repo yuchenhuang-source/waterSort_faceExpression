@@ -1,6 +1,7 @@
 {
   "LIQUID_BALL_DISPLAY_WIDTH_RATIO": 1.2,
   "LIQUID_BALL_SIZE_SCALE": 1.5,
+  "LIQUID_HEIGHT_SCALE": 0.9,
   "BALL_EXPRESSION_OFFSET_X": 0,
   "BALL_EXPRESSION_OFFSET_Y": 0,
   "BALL_EXPRESSION_SCALE_RATIO": 0.8,
@@ -27,13 +28,14 @@
     "PORTRAIT": {
       "WIDTH": 1080,
       "HEIGHT": 2160,
+      "TUBES_SCALE": 0.9,
       "TUBE_WIDTH": 91,
       "TUBE_HEIGHT": 713,
-      "TUBE_START_Y": 290,
+      "TUBE_START_Y": 650,
       "TUBE_SPACING_X": 49,
-      "ROW_SPACING_Y": 812,
-      "FIRST_TUBE_X": 75,
-      "FIRST_TUBE_Y": 295,
+      "ROW_SPACING_Y": 762,
+      "TUBES_CENTER_X": 540,
+      "TUBES_CENTER_Y": 1031,
       "COL_OFFSET_X": 140,
       "BALL_OFFSET_X": 25,
       "BALL_OFFSET_Y": 4
@@ -41,14 +43,17 @@
     "LANDSCAPE": {
       "WIDTH": 2160,
       "HEIGHT": 1080,
-      "TUBE_WIDTH": 54,
-      "TUBE_HEIGHT": 432,
-      "TUBE_START_Y": 50,
-      "TUBE_SPACING_X": 35,
-      "ROW_SPACING_Y": 500,
-      "FIRST_TUBE_X": 838,
-      "FIRST_TUBE_Y": 121,
-      "COL_OFFSET_X": 100,
+      "TUBES_SCALE": 1.3,
+      "TUBE_WIDTH": 64,
+      "TUBE_HEIGHT": 532,
+      "TUBE_COLS": 14,
+      "TUBE_ROWS": 1,
+      "TUBE_START_Y": 300,
+      "TUBE_SPACING_X": 505,
+      "ROW_SPACING_Y": 480,
+      "TUBES_CENTER_X": 0,
+      "TUBES_CENTER_Y": 540,
+      "COL_OFFSET_X": 90,
       "BALL_OFFSET_X": 13,
       "BALL_OFFSET_Y": 2
     }
@@ -56,31 +61,65 @@
   "UI_CONFIG": {
     "ICON": {
       "PORTRAIT": {
-        "x": 20,
-        "y": 20
+        "x": 0.05,
+        "y": 0.1,
+        "displayWidth": 150,
+        "displayHeight": 150
       },
       "LANDSCAPE": {
-        "x": 20,
-        "y": 20
+        "x": 0.1,
+        "y": 0.05,
+        "displayWidth": 150,
+        "displayHeight": 150
       }
     },
     "DOWNLOAD_BTN": {
       "PORTRAIT": {
-        "x": 540,
-        "y": 1960
+        "x": 0,
+        "y": 0.7,
+        "scale": 1.8
       },
       "LANDSCAPE": {
-        "x": 1920,
-        "y": 953
+        "x": 0,
+        "y": 0.76,
+        "scale": 1.6
       }
     },
     "POPUP": {
       "ICON_OFFSET_Y": -80,
       "DOWNLOAD_BTN_OFFSET_Y": 50
     },
+    "HAND_GUIDE": {
+      "tapDuration": 300,
+      "tapRepeatDelay": 400,
+      "moveDuration": 300,
+      "fadeDuration": 200
+    },
+    "HAND_ANIMATION": {
+      "moveDuration": 500,
+      "waitAfterMove": 280,
+      "tapDuration": 500,
+      "idleDuration": 500,
+      "handTapDuration": 0.32,
+      "handMoveTransition": 0.9,
+      "offsetX": 0.82,
+      "offsetY": 0.78
+    },
     "LEVEL_SELECT": {
-      "PREVIEW_SIZE_RATIO_PORTRAIT": 0.25,
-      "PREVIEW_SIZE_RATIO_LANDSCAPE": 0.15
+      "LOGO_SCALE": 1,
+      "LOGO_OFFSET_X": 0,
+      "LOGO_OFFSET_Y": 0,
+      "PREVIEW_WIDTH_RATIO_PORTRAIT": 0.25,
+      "PREVIEW_WIDTH_RATIO_LANDSCAPE": 0.15,
+      "PREVIEW_HEIGHT_PORTRAIT": 180,
+      "PREVIEW_HEIGHT_LANDSCAPE": 180,
+      "PREVIEW_BORDER_WIDTH": 4,
+      "PREVIEW_BORDER_COLOR": "#ffffff",
+      "PREVIEW_BORDER_RADIUS": 8,
+      "PREVIEW_OFFSET_X": 0,
+      "PREVIEW_OFFSET_Y": -5,
+      "PREVIEW_SCALE": 0.95,
+      "PREVIEW_LIQUID_HEIGHT_RATIO": 0.85
     }
   }
 }

@@ -19,9 +19,9 @@ interface GameConfig {
 
 export class Game extends Scene
 {
-    private downloadBtn: Phaser.GameObjects.Image;
-    private downloadBtnContainer: Phaser.GameObjects.Container;
     private iconBtn: Phaser.GameObjects.Image; // 左上角icon
+    private centerBtn: Phaser.GameObjects.Image; // 屏幕中心按钮
+    private centerBtnContainer: Phaser.GameObjects.Container; // 按钮容器（包含图片和文字）
     private resizeHandler: () => void;
     private board: Board;
     private debugText: Phaser.GameObjects.Text | null = null;
@@ -67,11 +67,12 @@ export class Game extends Scene
         this.board = new Board(this, data?.puzzle, data?.difficulty, data?.emptyTubeCount);
         console.log('[TIMING] Board创建完成', { t: performance.now(), d: (performance.now() - tBoard).toFixed(0) + 'ms' });
 
-        // 创建下载按钮
-        this.createDownloadButton();
+        // 创建左上角 icon 和屏幕中心按钮
+        this.createUIButtons();
 
         // 初始化场景大小
         this.updateGameSize();
+        this.time.delayedCall(0, () => this.updateGameSize(), [], this);
 
         // 保存resize处理函数的引用，以便后续移除
         this.resizeHandler = this.onWindowResize.bind(this);
@@ -210,6 +211,16 @@ export class Game extends Scene
             recordBoardUpdate(boardMs);
             tickPerf(this);
         }
+
+        // 每帧log按钮位置
+        if (this.centerBtnContainer) {
+            console.log('Center Button Position:', {
+                x: this.centerBtnContainer.x,
+                y: this.centerBtnContainer.y,
+                scale: this.centerBtnContainer.scale,
+                visible: this.centerBtnContainer.visible
+            });
+        }
     }
     
     /**
@@ -264,19 +275,39 @@ export class Game extends Scene
         }
     }
 
-    private createDownloadButton() {
-        // 创建下载按钮容器
-        this.downloadBtnContainer = this.add.container(0, 0);
-        
-        // 目标尺寸（原 download.png 的尺寸）
+    private createUIButtons() {
+        // 计算当前屏幕尺寸
+        const isPortrait = window.innerHeight > window.innerWidth;
+        const width = isPortrait ? 1080 : 2160;
+        const height = isPortrait ? 2160 : 1080;
+
+        // 左上角 icon（x/y 为 0-1 相对屏幕比例，适配任意分辨率）
+        const iconCfg = isPortrait ? UI_CONFIG.ICON.PORTRAIT : UI_CONFIG.ICON.LANDSCAPE;
+        const iconW = (iconCfg as { displayWidth?: number }).displayWidth ?? 128;
+        const iconH = (iconCfg as { displayHeight?: number }).displayHeight ?? 128;
+        const iconX = (iconCfg as { x?: number }).x ?? 0;
+        const iconY = (iconCfg as { y?: number }).y ?? 0;
+        this.iconBtn = this.add.image(width * iconX, height * iconY, 'icon');
+        this.iconBtn.setDisplaySize(iconW, iconH);
+        this.iconBtn.setOrigin(0, 0);
+        this.iconBtn.setInteractive();
+        this.iconBtn.on('pointerdown', () => download());
+
+        const btnCfg = this.getDownloadBtnConfig(isPortrait);
+        const { px: btnX, py: btnY } = this.btnPosFromNorm(width, height, btnCfg.x, btnCfg.y);
+
+        // 创建按钮容器
+        this.centerBtnContainer = this.add.container(btnX, btnY);
+        this.centerBtnContainer.setScale(btnCfg.scale);
+
+        // 按钮背景图片
         const targetWidth = 338;
         const targetHeight = 106;
-        
-        this.downloadBtn = this.add.image(0, 0, 'download');
-        this.downloadBtn.setDisplaySize(targetWidth, targetHeight);
-        this.downloadBtnContainer.add(this.downloadBtn);
-        
-        // 添加 DOWNLOAD 文字（根据浏览器语言自动切换）
+        this.centerBtn = this.add.image(0, 0, 'download');
+        this.centerBtn.setDisplaySize(targetWidth, targetHeight);
+        this.centerBtnContainer.add(this.centerBtn);
+
+        // 添加多语言文字
         const downloadText = this.add.text(0, 0, getDownloadText(), {
             fontFamily: 'Arial, sans-serif',
             fontSize: '32px',
@@ -284,75 +315,95 @@ export class Game extends Scene
             color: '#6a2f00'
         });
         downloadText.setOrigin(0.5, 0.5);
-        this.downloadBtnContainer.add(downloadText);
-        
-        this.downloadBtnContainer.setInteractive(
-            new Phaser.Geom.Rectangle(
-                -targetWidth / 2,
-                -targetHeight / 2,
-                targetWidth,
-                targetHeight
-            ),
+        this.centerBtnContainer.add(downloadText);
+
+        // 设置交互区域
+        this.centerBtnContainer.setInteractive(
+            new Phaser.Geom.Rectangle(-targetWidth / 2, -targetHeight / 2, targetWidth, targetHeight),
             Phaser.Geom.Rectangle.Contains
         );
-        
-        // 按钮点击事件
-        this.downloadBtnContainer.on('pointerdown', () => {
+        this.centerBtnContainer.on('pointerdown', () => {
             EventBus.emit('download-click');
             download();
         });
 
-        // 按钮缩放动画
+        // 添加缩放动画
         this.tweens.add({
-            targets: this.downloadBtnContainer,
-            scale: { from: 1, to: 1.1 },
+            targets: this.centerBtnContainer,
+            scale: { from: btnCfg.scale, to: btnCfg.scale * 1.1 },
             duration: 800,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'
         });
-        
-        // 创建左上角icon
-        this.iconBtn = this.add.image(0, 0, 'icon');
-        this.iconBtn.setDisplaySize(128, 128);
-        this.iconBtn.setOrigin(0, 0); // 设置原点在左上角
-        this.iconBtn.setInteractive();
-        this.iconBtn.on('pointerdown', () => {
-            download();
-        });
     }
+
 
     private onWindowResize() {
         this.updateGameSize();
     }
 
+    private getDownloadBtnConfig(isPortrait: boolean): { x: number; y: number; scale: number } {
+        const cfg = UI_CONFIG.DOWNLOAD_BTN as {
+            PORTRAIT?: { x?: number; y?: number; scale?: number };
+            LANDSCAPE?: { x?: number; y?: number; scale?: number };
+        };
+        const base = isPortrait ? cfg.PORTRAIT : cfg.LANDSCAPE;
+        return {
+            x: base?.x ?? 0,
+            y: base?.y ?? 0.82,
+            scale: base?.scale ?? 1
+        };
+    }
+
+    /** -1~1 转屏幕坐标，0 表示中心 */
+    private btnPosFromNorm(width: number, height: number, x: number, y: number): { px: number; py: number } {
+        return {
+            px: width * (x + 1) / 2,
+            py: height * (y + 1) / 2
+        };
+    }
+
     private updateGameSize() {
         const isPortrait = window.innerHeight > window.innerWidth;
-        
-        if (isPortrait) {
-            // 竖屏: 1080 x 2160
-            this.scale.setGameSize(1080, 2160);
-            const ui = UI_CONFIG.DOWNLOAD_BTN.PORTRAIT;
-            if (this.downloadBtnContainer) {
-                this.downloadBtnContainer.setPosition(ui.x, ui.y);
-            }
-            const icon = UI_CONFIG.ICON.PORTRAIT;
-            if (this.iconBtn) {
-                this.iconBtn.setPosition(icon.x, icon.y);
-            }
-        } else {
-            // 横屏: 2160 x 1080
-            this.scale.setGameSize(2160, 1080);
-            const ui = UI_CONFIG.DOWNLOAD_BTN.LANDSCAPE;
-            if (this.downloadBtnContainer) {
-                this.downloadBtnContainer.setPosition(ui.x, ui.y);
-            }
-            const icon = UI_CONFIG.ICON.LANDSCAPE;
-            if (this.iconBtn) {
-                this.iconBtn.setPosition(icon.x, icon.y);
+        const width = isPortrait ? 1080 : 2160;
+        const height = isPortrait ? 2160 : 1080;
+
+        this.scale.setGameSize(width, height);
+
+        // 显式刷新 Board 布局，避免 scale resize 事件顺序导致旋转后位置错误
+        if (this.board) {
+            this.board.refreshLayout();
+        }
+
+        const icon = isPortrait ? UI_CONFIG.ICON.PORTRAIT : UI_CONFIG.ICON.LANDSCAPE;
+        if (this.iconBtn) {
+            const ix = (icon as { x?: number }).x ?? 0;
+            const iy = (icon as { y?: number }).y ?? 0;
+            this.iconBtn.setPosition(width * ix, height * iy);
+            const iconW = (icon as { displayWidth?: number }).displayWidth;
+            const iconH = (icon as { displayHeight?: number }).displayHeight;
+            if (iconW != null && iconH != null) {
+                this.iconBtn.setDisplaySize(iconW, iconH);
             }
         }
-        
+
+        if (this.centerBtnContainer) {
+            const btnCfg = this.getDownloadBtnConfig(isPortrait);
+            const { px, py } = this.btnPosFromNorm(width, height, btnCfg.x, btnCfg.y);
+            this.centerBtnContainer.setPosition(px, py);
+            this.centerBtnContainer.setScale(btnCfg.scale);
+            this.tweens.killTweensOf(this.centerBtnContainer);
+            this.tweens.add({
+                targets: this.centerBtnContainer,
+                scale: { from: btnCfg.scale, to: btnCfg.scale * 1.1 },
+                duration: 800,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        }
+
         // 更新胜利弹窗位置
         this.updateVictoryPopupPosition();
     }
@@ -600,7 +651,13 @@ export class Game extends Scene
     }
 
     shutdown() {
+        window.removeEventListener('resize', this.resizeHandler);
         EventBus.off('pauseAd', this.pauseGameSound, this);
         EventBus.off('showAd', this.resumeGameSound, this);
+        EventBus.off('level-selected', this.onLevelSelected, this);
+        EventBus.off('game-over', this.showVictoryPopup, this);
+        EventBus.off('game-deadlock', this.showDeadlockPopup, this);
+        EventBus.off('jump-step', this.onJumpStep, this);
+        EventBus.off('tube-completed', this.onTubeCompleted, this);
     }
 }

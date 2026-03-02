@@ -5,27 +5,29 @@ body {
   padding: 0;
 }
 
-canvas {
-  max-width: 100vw;
-  max-height: 100vh;
-  margin: auto;
+#game-container canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 #app {
   width: 100vw;
   height: 100vh;
-  background-size: contain;
+  background-size: cover;
   display: flex;
   justify-content: center;
   position: relative;
+  overflow: hidden;
 }
 
 #game-container {
   position: absolute;
   inset: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* 选关显示时隐藏游戏画面，点击选关后才显示 */

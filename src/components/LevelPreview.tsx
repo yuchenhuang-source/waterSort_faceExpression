@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BallColor } from '../game/constants/GameConstants';
+import { BallColor, UI_CONFIG } from '../game/constants/GameConstants';
 import { generatePuzzleWithAdapter } from '../utils/puzzle-adapter';
 import { getCachedPuzzle, waitForPregenerate } from '../utils/puzzleCache';
 import { getLiquidColors, getOutputConfigValueAsync } from '../utils/outputConfigLoader';
@@ -72,7 +72,13 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 })
         const cached = getCachedPuzzle(difficulty, emptyTubeCount);
         // getLiquidColors 依赖 getOutputConfigAsync 的缓存，pregenerate 已先调用
         const liquidColors = getLiquidColors();
-        const previewConfig: LevelPreviewConfig = (await getOutputConfigValueAsync<LevelPreviewConfig>('levelPreview')) ?? { scale: 1, translateX: 0, translateY: 0 };
+        const fromOutput = await getOutputConfigValueAsync<LevelPreviewConfig>('levelPreview');
+        const fromUI = UI_CONFIG?.LEVEL_SELECT;
+        const previewConfig: LevelPreviewConfig = {
+          scale: fromUI?.PREVIEW_SCALE ?? fromOutput?.scale ?? 1,
+          translateX: fromUI?.PREVIEW_OFFSET_X ?? fromOutput?.translateX ?? 0,
+          translateY: fromUI?.PREVIEW_OFFSET_Y ?? fromOutput?.translateY ?? 0
+        };
         let tubes: { color: BallColor; count: number }[][];
         if (cached?.puzzle?.tubes) {
           tubes = cached.puzzle.tubes.slice(0, maxTubes).map(tubeToLiquidBlocks);
@@ -94,9 +100,13 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 })
   const scale = previewConfig.scale ?? 1;
   const tx = previewConfig.translateX ?? 0;
   const ty = previewConfig.translateY ?? 0;
+  const liquidHeightRatio = UI_CONFIG?.LEVEL_SELECT?.PREVIEW_LIQUID_HEIGHT_RATIO ?? 0.85;
 
   return (
-    <div className="level-preview level-image">
+    <div
+      className="level-preview level-image"
+      style={{ ['--preview-liquid-height-ratio' as string]: String(liquidHeightRatio) }}
+    >
       <div
         className="level-preview-inner"
         style={{

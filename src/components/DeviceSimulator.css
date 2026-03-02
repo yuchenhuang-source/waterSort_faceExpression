@@ -71,6 +71,20 @@
   min-width: 36px;
 }
 
+.sim-lang select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #0f3460;
+  background: #0f3460;
+  color: #eee;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sim-lang select:focus {
+  outline: 1px solid #00d9ff;
+}
+
 .sim-presets {
   display: flex;
   gap: 6px;

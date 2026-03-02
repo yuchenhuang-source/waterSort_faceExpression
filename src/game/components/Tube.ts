@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
 import { Ball } from './Ball';
-import { BallColor, BALL_RISE_DURATION, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO, WATER_RISE_DURATION } from '../constants/GameConstants';
+import { BallColor, BALL_RISE_DURATION, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, LIQUID_HEIGHT_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO, WATER_RISE_DURATION } from '../constants/GameConstants';
 import { getLiquidColors, getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
@@ -206,6 +206,11 @@ export class Tube extends Phaser.GameObjects.Container {
         return this.currentHeight;
     }
 
+    /** 每层液体的高度，随试管高度缩放，改变 TUBE_WIDTH/TUBE_HEIGHT 后仍正确 */
+    private getUnitHeight(): number {
+        return (this.currentHeight / GAME_CONFIG.TUBE_CAPACITY) * LIQUID_HEIGHT_SCALE;
+    }
+
     public updateSize(width: number, height: number, ballSize: number, ballSpacing: number) {
         this.currentWidth = width;
         this.currentHeight = height;
@@ -295,7 +300,7 @@ export class Tube extends Phaser.GameObjects.Container {
             return;
         }
 
-        const unitHeight = this.currentBallSize + this.currentBallSpacing;
+        const unitHeight = this.getUnitHeight();
         const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         const width = this.currentWidth;
         let currentY = bottomY;
@@ -444,7 +449,7 @@ export class Tube extends Phaser.GameObjects.Container {
         }
 
         // 计算单位高度 (保持与球的大小一致，或者填满试管)
-        const unitHeight = this.currentBallSize + this.currentBallSpacing;
+        const unitHeight = this.getUnitHeight();
         const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         
         // 绘制液体柱：顶球若正在试管外悬浮则不参与；若正在加入液体则先不画最后一颗，改画 adding 块
@@ -686,7 +691,7 @@ export class Tube extends Phaser.GameObjects.Container {
         ball.setScale(this.currentBallSize / GAME_CONFIG.BALL_SIZE);
 
         // 计算目标位置（液面顶部）
-        const unitHeight = this.currentBallSize + this.currentBallSpacing;
+        const unitHeight = this.getUnitHeight();
         const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         const targetY = bottomY - (this.balls.length * unitHeight);
         
@@ -746,7 +751,7 @@ export class Tube extends Phaser.GameObjects.Container {
             
             // 启动水位下降动画
             this.removingBallColor = ball.color;
-            const unitHeight = this.currentBallSize + this.currentBallSpacing;
+            const unitHeight = this.getUnitHeight();
             this.removingBallHeight = unitHeight;
             
             // 立即更新一次以显示完整水位
@@ -795,7 +800,7 @@ export class Tube extends Phaser.GameObjects.Container {
      * 计算指定球数时的液面顶部 Y（试管本地坐标，与 drawLiquid 一致）
      */
     private getSurfaceYForBallCount(ballCount: number): number {
-        const unitHeight = this.currentBallSize + this.currentBallSpacing;
+        const unitHeight = this.getUnitHeight();
         const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         return bottomY - ballCount * unitHeight;
     }
@@ -874,7 +879,7 @@ export class Tube extends Phaser.GameObjects.Container {
             this.waterRiseQueue.push({ color, onComplete, isReturn, isLast });
             return;
         }
-        const unitHeight = this.currentBallSize + this.currentBallSpacing;
+        const unitHeight = this.getUnitHeight();
         const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         const startSurfaceY = bottomY - (this.balls.length - 1) * unitHeight; // 新块未长高时的液面 Y = 相邻液体层顶部
 
@@ -1061,10 +1066,9 @@ export class Tube extends Phaser.GameObjects.Container {
     }
 
     public getBallY(index: number): number {
-        // 试管底部位置
-        const bottomY = this.currentHeight / 2 - 25 * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT); // 底部留白按比例缩放
-        // 从下往上堆叠
-        return bottomY - index * (this.currentBallSize + this.currentBallSpacing) - this.currentBallSize / 2;
+        const unitHeight = this.getUnitHeight();
+        const bottomY = this.currentHeight / 2 - 25 * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        return bottomY - index * unitHeight - this.currentBallSize / 2;
     }
 
     public checkCompletion() {

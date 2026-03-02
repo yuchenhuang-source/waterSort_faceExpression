@@ -15,20 +15,37 @@ function isDesktop(): boolean {
   return window.innerWidth >= 768;
 }
 
-function readSimConfigFromUrl(): { w: number; h: number; scale: number } {
-  if (typeof window === 'undefined') return { w: 390, h: 844, scale: 0.5 };
+const LANG_OPTIONS = [
+  { value: '', label: 'Browser' },
+  { value: 'en', label: 'EN' },
+  { value: 'zh-CN', label: '简体' },
+  { value: 'zh-TW', label: '繁體' },
+  { value: 'ja', label: '日' },
+  { value: 'ko', label: '한' },
+  { value: 'es', label: 'ES' },
+  { value: 'pt', label: 'PT' },
+  { value: 'de', label: 'DE' },
+  { value: 'fr', label: 'FR' },
+  { value: 'ru', label: 'RU' },
+  { value: 'ar', label: 'AR' },
+];
+
+function readSimConfigFromUrl(): { w: number; h: number; scale: number; lang: string } {
+  if (typeof window === 'undefined') return { w: 390, h: 844, scale: 0.5, lang: '' };
   const p = new URLSearchParams(window.location.search);
   const w = Math.min(2400, Math.max(200, parseInt(p.get('simW') || '390', 10) || 390));
   const h = Math.min(2400, Math.max(200, parseInt(p.get('simH') || '844', 10) || 844));
   const scale = Math.min(1, Math.max(0.2, parseFloat(p.get('simScale') || '0.5') || 0.5));
-  return { w, h, scale };
+  const lang = p.get('simLang') || '';
+  return { w, h, scale, lang };
 }
 
 export function DeviceSimulator({ children }: { children: React.ReactNode }) {
-  const initial = typeof window !== 'undefined' ? readSimConfigFromUrl() : { w: 390, h: 844, scale: 0.5 };
+  const initial = typeof window !== 'undefined' ? readSimConfigFromUrl() : { w: 390, h: 844, scale: 0.5, lang: '' };
   const [width, setWidth] = useState(initial.w);
   const [height, setHeight] = useState(initial.h);
   const [scale, setScale] = useState(initial.scale);
+  const [lang, setLang] = useState(initial.lang);
 
   const search = typeof window !== 'undefined' ? window.location.search : '';
   const urlParams = new URLSearchParams(search);
@@ -41,13 +58,15 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
     p.set('simW', String(width));
     p.set('simH', String(height));
     p.set('simScale', String(scale));
+    if (lang) p.set('simLang', lang);
+    else p.delete('simLang');
     const qs = p.toString();
     window.history.replaceState({}, '', `${window.location.pathname || '/'}${qs ? '?' + qs : ''}`);
-  }, [showSimulator, width, height, scale]);
+  }, [showSimulator, width, height, scale, lang]);
 
   const rotate = useCallback(() => {
-    setWidth((w) => height);
-    setHeight((h) => width);
+    setWidth(() => height);
+    setHeight(() => width);
   }, [width, height]);
 
   const applyPreset = useCallback((w: number, h: number) => {
@@ -64,6 +83,8 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
           p.delete('simW');
           p.delete('simH');
           p.delete('simScale');
+          if (lang) p.set('lang', lang);
+          else p.delete('lang');
           return `${window.location.origin}${window.location.pathname || '/'}?${p.toString()}`;
         })()
       : '#';
@@ -109,6 +130,13 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
           Scale <input type="range" min={0.2} max={1} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} />
           <span>{Math.round(scale * 100)}%</span>
         </label>
+        <label className="sim-lang">
+          Lang <select value={lang} onChange={(e) => setLang(e.target.value)} title="Simulate browser language">
+            {LANG_OPTIONS.map((o) => (
+              <option key={o.value || 'browser'} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
         <div className="sim-presets">
           {PRESETS.map((p) => (
             <button key={p.name} type="button" onClick={() => applyPreset(p.w, p.h)} className="sim-preset-btn">
@@ -135,6 +163,7 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
               p.delete('simW');
               p.delete('simH');
               p.delete('simScale');
+              p.delete('simLang');
               const qs = p.toString();
               return (typeof window !== 'undefined' ? window.location.origin + (window.location.pathname || '/') : '') + (qs ? '?' + qs : '');
             })()

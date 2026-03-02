@@ -61,6 +61,7 @@ function deepMerge<T>(target: T, source: Partial<T>): T {
 const defaultConfig = {
     LIQUID_BALL_DISPLAY_WIDTH_RATIO: 1.2,
     LIQUID_BALL_SIZE_SCALE: 1.5,
+    LIQUID_HEIGHT_SCALE: 1,
     BALL_EXPRESSION_OFFSET_X: 0,
     BALL_EXPRESSION_OFFSET_Y: 0,
     BALL_EXPRESSION_SCALE_RATIO: 0.8,
@@ -87,13 +88,14 @@ const defaultConfig = {
         PORTRAIT: {
             WIDTH: 1080,
             HEIGHT: 2160,
+            TUBES_SCALE: 1,
             TUBE_WIDTH: 91,
             TUBE_HEIGHT: 713,
             TUBE_START_Y: 290,
             TUBE_SPACING_X: 49,
             ROW_SPACING_Y: 812,
-            FIRST_TUBE_X: 75,
-            FIRST_TUBE_Y: 295,
+            TUBES_CENTER_X: 540,
+            TUBES_CENTER_Y: 696,
             COL_OFFSET_X: 140,
             BALL_OFFSET_X: 25,
             BALL_OFFSET_Y: 4
@@ -101,13 +103,16 @@ const defaultConfig = {
         LANDSCAPE: {
             WIDTH: 2160,
             HEIGHT: 1080,
+            TUBES_SCALE: 1,
             TUBE_WIDTH: 54,
             TUBE_HEIGHT: 432,
+            TUBE_COLS: 14,
+            TUBE_ROWS: 1,
             TUBE_START_Y: 50,
             TUBE_SPACING_X: 35,
             ROW_SPACING_Y: 500,
-            FIRST_TUBE_X: 838,
-            FIRST_TUBE_Y: 121,
+            TUBES_CENTER_X: 1080,
+            TUBES_CENTER_Y: 300,
             COL_OFFSET_X: 100,
             BALL_OFFSET_X: 13,
             BALL_OFFSET_Y: 2
@@ -115,20 +120,48 @@ const defaultConfig = {
     },
     UI_CONFIG: {
         ICON: {
-            PORTRAIT: { x: 20, y: 20 },
-            LANDSCAPE: { x: 20, y: 20 }
+            PORTRAIT: { x: 0.02, y: 0.01, displayWidth: 128, displayHeight: 128 },
+            LANDSCAPE: { x: 0.02, y: 0.02, displayWidth: 128, displayHeight: 128 }
         },
         DOWNLOAD_BTN: {
-            PORTRAIT: { x: 540, y: 1960 },
-            LANDSCAPE: { x: 1920, y: 953 }
+            PORTRAIT: { x: 0, y: 0.82, scale: 1 },
+            LANDSCAPE: { x: 0, y: 0.76, scale: 1 }
         },
         POPUP: {
             ICON_OFFSET_Y: -80,
             DOWNLOAD_BTN_OFFSET_Y: 50
         },
+        HAND_GUIDE: {
+            tapDuration: 300,
+            tapRepeatDelay: 200,
+            moveDuration: 300,
+            fadeDuration: 200
+        },
+        HAND_ANIMATION: {
+            moveDuration: 600,
+            waitAfterMove: 400,
+            tapDuration: 500,
+            idleDuration: 500,
+            handTapDuration: 0.32,
+            handMoveTransition: 0.9,
+            offsetX: 0.82,
+            offsetY: 0.78
+        },
         LEVEL_SELECT: {
-            PREVIEW_SIZE_RATIO_PORTRAIT: 0.15,
-            PREVIEW_SIZE_RATIO_LANDSCAPE: 0.15
+            LOGO_SCALE: 1.08,
+            LOGO_OFFSET_X: 0,
+            LOGO_OFFSET_Y: 0,
+            PREVIEW_WIDTH_RATIO_PORTRAIT: 0.15,
+            PREVIEW_WIDTH_RATIO_LANDSCAPE: 0.15,
+            PREVIEW_HEIGHT_PORTRAIT: 180,
+            PREVIEW_HEIGHT_LANDSCAPE: 120,
+            PREVIEW_BORDER_WIDTH: 2,
+            PREVIEW_BORDER_COLOR: '#ffffff',
+            PREVIEW_BORDER_RADIUS: 8,
+            PREVIEW_OFFSET_X: 0,
+            PREVIEW_OFFSET_Y: 38,
+            PREVIEW_SCALE: 0.95,
+            PREVIEW_LIQUID_HEIGHT_RATIO: 0.85
         }
     }
 };
@@ -140,6 +173,9 @@ export const LIQUID_BALL_DISPLAY_WIDTH_RATIO = cfg.LIQUID_BALL_DISPLAY_WIDTH_RAT
 
 /** 水球整体尺寸倍数，可调小水球：1.0 为默认，<1 缩小（如 0.8、0.9） */
 export const LIQUID_BALL_SIZE_SCALE = cfg.LIQUID_BALL_SIZE_SCALE;
+
+/** 试管内液体垂直缩放：基于试管高度自动计算，1 为默认填满，>1 每层更高，<1 每层更矮。改变 TUBE_WIDTH/TUBE_HEIGHT 后仍正确 */
+export const LIQUID_HEIGHT_SCALE = cfg.LIQUID_HEIGHT_SCALE;
 
 /** 圆球表情在小球上的位置偏移（相对小球中心），可调整：X 正值向右，Y 正值向下 */
 export const BALL_EXPRESSION_OFFSET_X = cfg.BALL_EXPRESSION_OFFSET_X;

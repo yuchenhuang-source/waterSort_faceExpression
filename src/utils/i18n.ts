@@ -170,9 +170,13 @@ const downloadTranslations: Record<string, string> = {
 
 /**
  * 获取浏览器语言
+ * 若 URL 含 ?lang=xx（如 simulator 模拟），优先使用
  */
 function getBrowserLanguage(): string {
-    // 优先使用 navigator.language
+    if (typeof window !== 'undefined') {
+        const override = new URLSearchParams(window.location.search).get('lang');
+        if (override) return override;
+    }
     const lang = navigator.language || (navigator as any).userLanguage || 'en';
     return lang;
 }

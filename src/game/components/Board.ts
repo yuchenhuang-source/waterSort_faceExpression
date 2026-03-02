@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { Tube } from './Tube';
 import { Ball } from './Ball';
-import { GAME_CONFIG, BALL_COLORS, BallColor, BALL_RISE_DURATION, BALL_DROP_DURATION, BALL_MOVE_RISE_ALREADY_HOVER, BALL_MOVE_RISE_NORMAL, BALL_MOVE_ARC_TIME, BALL_MOVE_START_DELAY } from '../constants/GameConstants';
+import { GAME_CONFIG, UI_CONFIG, BALL_COLORS, BallColor, BALL_RISE_DURATION, BALL_DROP_DURATION, BALL_MOVE_RISE_ALREADY_HOVER, BALL_MOVE_RISE_NORMAL, BALL_MOVE_ARC_TIME, BALL_MOVE_START_DELAY } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
@@ -33,19 +33,6 @@ export class Board extends Phaser.GameObjects.Container {
     private isGameActive: boolean = false;
     private idleTimer: number = 0;
     private static readonly IDLE_HINT_DELAY = 5000; // 5秒无操作后显示引导
-
-    /** 游戏内手指引导动画配置（从 output-config.gameHandGuide 读取，未配置时用默认值） */
-    private handGuideConfig: {
-        tapDuration: number;
-        tapRepeatDelay: number;
-        moveDuration: number;
-        fadeDuration: number;
-    } = {
-        tapDuration: 300,
-        tapRepeatDelay: 200,
-        moveDuration: 300,
-        fadeDuration: 200
-    };
 
     // 引导系统状态
     private hintSourceTube: Tube | null = null;  // 引导的源试管
@@ -79,9 +66,6 @@ export class Board extends Phaser.GameObjects.Container {
         }
         
         this.createHand();
-        getOutputConfigValueAsync<typeof this.handGuideConfig>('gameHandGuide').then(
-            cfg => cfg && Object.assign(this.handGuideConfig, cfg)
-        );
 
         // 监听窗口大小变化
         scene.scale.on('resize', this.handleResize, this);
@@ -151,19 +135,27 @@ export class Board extends Phaser.GameObjects.Container {
         if (!this.boardLiquidMaskGraphics) return;
         this.boardLiquidMaskGraphics.clear();
         const config = this.scene.scale.height > this.scene.scale.width ? GAME_CONFIG.PORTRAIT : GAME_CONFIG.LANDSCAPE;
-        const radius = (config.TUBE_WIDTH - 4) / 2;
-        const maskWidth = config.TUBE_WIDTH - 4;
-        const maskHeight = config.TUBE_HEIGHT - 4;
-        const totalWidth = (GAME_CONFIG.TUBE_COLS - 1) * config.COL_OFFSET_X;
-        const totalHeight = (GAME_CONFIG.TUBE_ROWS - 1) * config.ROW_SPACING_Y;
-        const startX = (this.scene.scale.width - totalWidth) / 2;
-        const startY = (this.scene.scale.height - totalHeight) / 2;
+        const cfg = config as Record<string, number>;
+        const tubesScale = (cfg.TUBES_SCALE ?? 1) || 1;
+        const tubeCols = cfg.TUBE_COLS ?? GAME_CONFIG.TUBE_COLS;
+        const tubeRows = cfg.TUBE_ROWS ?? GAME_CONFIG.TUBE_ROWS;
+        const maskWidth = (config.TUBE_WIDTH - 4) * tubesScale;
+        const maskHeight = (config.TUBE_HEIGHT - 4) * tubesScale;
+        const radius = maskWidth / 2;
+        const colOffsetX = config.COL_OFFSET_X * tubesScale;
+        const rowSpacingY = config.ROW_SPACING_Y * tubesScale;
+        const totalWidth = (tubeCols - 1) * colOffsetX;
+        const totalHeight = (tubeRows - 1) * rowSpacingY;
+        const centerX = (cfg.TUBES_CENTER_X != null && cfg.TUBES_CENTER_X !== 0) ? cfg.TUBES_CENTER_X : this.scene.scale.width / 2;
+        const centerY = (cfg.TUBES_CENTER_Y != null && cfg.TUBES_CENTER_Y !== 0) ? cfg.TUBES_CENTER_Y : this.scene.scale.height / 2;
+        const startX = centerX - totalWidth / 2;
+        const startY = centerY - totalHeight / 2;
         this.boardLiquidMaskGraphics.fillStyle(0xffffff);
         this.tubes.forEach((tube, index) => {
-            const row = Math.floor(index / GAME_CONFIG.TUBE_COLS);
-            const col = index % GAME_CONFIG.TUBE_COLS;
-            const tx = startX + col * config.COL_OFFSET_X;
-            const ty = startY + row * config.ROW_SPACING_Y;
+            const row = Math.floor(index / tubeCols);
+            const col = index % tubeCols;
+            const tx = startX + col * colOffsetX;
+            const ty = startY + row * rowSpacingY;
             this.boardLiquidMaskGraphics!.fillRoundedRect(
                 tx - maskWidth / 2, ty - maskHeight / 2,
                 maskWidth, maskHeight,
@@ -1116,7 +1108,7 @@ export class Board extends Phaser.GameObjects.Container {
         
         // 手指动画：模拟点击下压效果
         // 向下移动 + 轻微缩小 + 轻微旋转
-        const { tapDuration, tapRepeatDelay } = this.handGuideConfig;
+        const { tapDuration, tapRepeatDelay } = UI_CONFIG.HAND_GUIDE;
         this.handTween = this.scene.tweens.add({
             targets: this.hand,
             y: this.handBaseY + pressDistance,   // 向下移动
@@ -1779,7 +1771,7 @@ export class Board extends Phaser.GameObjects.Container {
         }
         
         // 平滑移动到目标位置
-        const { moveDuration } = this.handGuideConfig;
+        const { moveDuration } = UI_CONFIG.HAND_GUIDE;
         this.handMoveTween = this.scene.tweens.add({
             targets: this.hand,
             x: globalPos.x,
@@ -1810,7 +1802,7 @@ export class Board extends Phaser.GameObjects.Container {
         this.hand.setVisible(true);
         this.startHandAnimation();
         
-        const { fadeDuration } = this.handGuideConfig;
+        const { fadeDuration } = UI_CONFIG.HAND_GUIDE;
         this.handFadeTween = this.scene.tweens.add({
             targets: this.hand,
             alpha: 1,
@@ -1837,7 +1829,7 @@ export class Board extends Phaser.GameObjects.Container {
             this.handMoveTween = null;
         }
         
-        const { fadeDuration } = this.handGuideConfig;
+        const { fadeDuration } = UI_CONFIG.HAND_GUIDE;
         this.handFadeTween = this.scene.tweens.add({
             targets: this.hand,
             alpha: 0,
@@ -1883,25 +1875,31 @@ export class Board extends Phaser.GameObjects.Container {
         }
     }
 
+    /** 供 Game 场景在 setGameSize 后显式调用，确保旋转后布局正确 */
+    public refreshLayout(): void {
+        this.handleResize(this.scene.scale.gameSize);
+    }
+
     private handleResize(gameSize: Phaser.Structs.Size) {
         const isPortrait = gameSize.height > gameSize.width;
         const config = isPortrait ? GAME_CONFIG.PORTRAIT : GAME_CONFIG.LANDSCAPE;
+        const cfg = config as Record<string, number>;
+        const tubesScale = (cfg.TUBES_SCALE ?? 1) || 1;
 
-        // 计算缩放比例
-        // 竖屏使用原始比例，横屏根据试管宽度比例缩放球
+        // 计算缩放比例：竖屏原始，横屏按试管宽度比例
         const scale = isPortrait ? 1 : (config.TUBE_WIDTH / GAME_CONFIG.PORTRAIT.TUBE_WIDTH);
-        
-        // 更新所有试管的尺寸
-        const tubeWidth = config.TUBE_WIDTH;
-        const tubeHeight = config.TUBE_HEIGHT;
-        const ballSize = GAME_CONFIG.BALL_SIZE * scale;
-        const ballSpacing = GAME_CONFIG.BALL_SPACING * scale;
+
+        // 更新所有试管的尺寸（应用 TUBES_SCALE）
+        const tubeWidth = config.TUBE_WIDTH * tubesScale;
+        const tubeHeight = config.TUBE_HEIGHT * tubesScale;
+        const ballSize = GAME_CONFIG.BALL_SIZE * scale * tubesScale;
+        const ballSpacing = GAME_CONFIG.BALL_SPACING * scale * tubesScale;
 
         this.tubes.forEach(tube => {
             tube.updateSize(tubeWidth, tubeHeight, ballSize, ballSpacing);
         });
 
-        // 横竖屏切换后，若有球正在悬浮，按新试管尺寸更新其相对位置（试管顶部一段距离）并重启悬浮动画
+        // 横竖屏切换后，若有球正在悬浮，按新试管尺寸更新其相对位置并重启悬浮动画
         if (this.selectedTube) {
             const topBall = this.selectedTube.getTopBall();
             if (topBall) {
@@ -1913,27 +1911,24 @@ export class Board extends Phaser.GameObjects.Container {
             }
         }
 
-        // 重新排列试管
-        // 计算整体偏移量以确保居中
-        const totalWidth = (GAME_CONFIG.TUBE_COLS - 1) * config.COL_OFFSET_X;
-        const startX = (gameSize.width - totalWidth) / 2;
-        
-        // 计算垂直方向的整体偏移量以确保居中
-        const totalHeight = (GAME_CONFIG.TUBE_ROWS - 1) * config.ROW_SPACING_Y;
-        // 竖屏时，游戏区域通常偏上，但这里我们尝试居中
-        // 如果需要严格按照设计稿的固定Y值，可以使用 config.TUBE_START_Y
-        // 但为了适应不同屏幕，居中可能更好
-        // 这里我们结合两者：如果屏幕高度足够，则居中；否则使用固定起始位置或进行适配
-        
-        // 简单居中策略：
-        const startY = (gameSize.height - totalHeight) / 2;
+        // 重新排列试管（以所有 tubes 的中点定位，间距也应用 TUBES_SCALE）
+        const tubeCols = cfg.TUBE_COLS ?? GAME_CONFIG.TUBE_COLS;
+        const tubeRows = cfg.TUBE_ROWS ?? GAME_CONFIG.TUBE_ROWS;
+        const colOffsetX = config.COL_OFFSET_X * tubesScale;
+        const rowSpacingY = config.ROW_SPACING_Y * tubesScale;
+        const totalWidth = (tubeCols - 1) * colOffsetX;
+        const totalHeight = (tubeRows - 1) * rowSpacingY;
+        const centerX = (cfg.TUBES_CENTER_X != null && cfg.TUBES_CENTER_X !== 0) ? cfg.TUBES_CENTER_X : gameSize.width / 2;
+        const centerY = (cfg.TUBES_CENTER_Y != null && cfg.TUBES_CENTER_Y !== 0) ? cfg.TUBES_CENTER_Y : gameSize.height / 2;
+        const startX = centerX - totalWidth / 2;
+        const startY = centerY - totalHeight / 2;
 
         this.tubes.forEach((tube, index) => {
-            const row = Math.floor(index / GAME_CONFIG.TUBE_COLS);
-            const col = index % GAME_CONFIG.TUBE_COLS;
+            const row = Math.floor(index / tubeCols);
+            const col = index % tubeCols;
 
-            const x = startX + col * config.COL_OFFSET_X;
-            const y = startY + row * config.ROW_SPACING_Y;
+            const x = startX + col * colOffsetX;
+            const y = startY + row * rowSpacingY;
 
             tube.setPosition(x, y);
         });
