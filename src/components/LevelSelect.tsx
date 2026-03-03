@@ -6,7 +6,7 @@ import chooseImg from '../assets/choose.png';
 import playNowImg from '../assets/play-now.png';
 import download from '../game/scenes/constants/download';
 import LevelPreview from './LevelPreview';
-import { UI_CONFIG } from '../game/constants/GameConstants';
+import { Config } from '../game/constants/GameConstants';
 
 export interface LevelSelectProps {
   onSelectLevel: (level: number) => void;
@@ -23,12 +23,12 @@ function getPreviewSize(): { width: number; height: number } {
   if (typeof window === 'undefined') return { width: 120, height: 180 };
   const isPortrait = window.innerHeight > window.innerWidth;
   const widthRatio = isPortrait
-    ? (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_WIDTH_RATIO_PORTRAIT ?? 0.15)
-    : (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_WIDTH_RATIO_LANDSCAPE ?? 0.15);
+    ? (Config.UI_CONFIG?.LEVEL_SELECT?.PREVIEW_WIDTH_RATIO_PORTRAIT ?? 0.15)
+    : (Config.UI_CONFIG?.LEVEL_SELECT?.PREVIEW_WIDTH_RATIO_LANDSCAPE ?? 0.15);
   const width = Math.round(window.innerWidth * widthRatio);
   const height = isPortrait
-    ? (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_HEIGHT_PORTRAIT ?? 180)
-    : (UI_CONFIG?.LEVEL_SELECT?.PREVIEW_HEIGHT_LANDSCAPE ?? 120);
+    ? (Config.UI_CONFIG?.LEVEL_SELECT?.PREVIEW_HEIGHT_PORTRAIT ?? 180)
+    : (Config.UI_CONFIG?.LEVEL_SELECT?.PREVIEW_HEIGHT_LANDSCAPE ?? 120);
   return { width, height };
 }
 
@@ -64,7 +64,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
   });
   const [currentCardIndex, setCurrentCardIndex] = useState<number>(-1);
   const [isSimulatingClick, setIsSimulatingClick] = useState(false);
-  const handConfig = UI_CONFIG.HAND_ANIMATION;
+  const handConfig = Config.UI_CONFIG.HAND_ANIMATION;
 
   const updateHandPosition = useCallback(
     (cardIndex: number) => {
@@ -183,11 +183,11 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
           <div
             className="game-logo-section"
             style={{
-              transform: `translate(${UI_CONFIG?.LEVEL_SELECT?.LOGO_OFFSET_X ?? 0}px, ${UI_CONFIG?.LEVEL_SELECT?.LOGO_OFFSET_Y ?? 0}px)`
+              transform: `translate(${Config.UI_CONFIG?.LEVEL_SELECT?.LOGO_OFFSET_X ?? 0}px, ${Config.UI_CONFIG?.LEVEL_SELECT?.LOGO_OFFSET_Y ?? 0}px)`
             }}
           >
-            <div className="game-icon-wrapper" style={{ ['--logo-scale' as string]: String(UI_CONFIG?.LEVEL_SELECT?.LOGO_SCALE ?? 1.08) }}>
-              <img src={icon} alt="Game Icon" className="game-icon placeholder-img" />
+            <div className="game-icon-wrapper" style={{ ['--logo-scale' as string]: String(Config.UI_CONFIG?.LEVEL_SELECT?.LOGO_SCALE ?? 1.08) }}>
+              <img src={icon} alt="Game Icon" className="game-icon" />
             </div>
             <h2 className="game-title">Water Sort</h2>
           </div>
@@ -217,7 +217,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
                 .filter(Boolean)
                 .join(' ');
 
-              const ls = UI_CONFIG?.LEVEL_SELECT;
+              const ls = Config.UI_CONFIG?.LEVEL_SELECT;
               const borderWidth = ls?.PREVIEW_BORDER_WIDTH ?? 2;
               const borderColor = ls?.PREVIEW_BORDER_COLOR ?? '#ffffff';
               const borderRadius = ls?.PREVIEW_BORDER_RADIUS ?? 8;

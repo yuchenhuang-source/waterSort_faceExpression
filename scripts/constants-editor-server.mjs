@@ -7,7 +7,6 @@ import { spawn } from 'child_process';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.join(__dirname, '..');
 const configPath = path.join(projectRoot, 'src', 'game', 'constants', 'game-constants-config.json');
-const gameConstantsPath = path.join(projectRoot, 'src', 'game', 'constants', 'GameConstants.ts');
 const distPath = path.join(projectRoot, 'dist', 'index.html');
 
 const app = express();
@@ -32,15 +31,12 @@ app.get('/api/constants', (req, res) => {
   }
 });
 
-// 保存配置并触发 dev 重载
+// 保存配置（仅写入 JSON，不 touch 文件；iframe 重载时从 /api/constants 获取最新配置）
 app.post('/api/constants', (req, res) => {
   try {
     const config = req.body;
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-    // touch GameConstants.ts 强制 Vite 检测变更并热更新（JSON 单独变更可能不触发）
-    const now = Date.now() / 1000;
-    fs.utimesSync(gameConstantsPath, now, now);
-    console.log('Config saved. GameConstants.ts touched for HMR.');
+    console.log('Config saved.');
     res.json({ ok: true });
   } catch (err) {
     console.error('Save config error:', err);

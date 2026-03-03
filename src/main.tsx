@@ -1,16 +1,25 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App.tsx';
-import { DeviceSimulator } from './components/DeviceSimulator';
-import { pregeneratePuzzles } from './utils/puzzleCache';
+import { fetchGameConstants } from './game/constants/configLoader';
+import { initGameConstants } from './game/constants/GameConstants';
 
-// 尽早启动配置与谜题加载，与 React/Phaser 初始化并行
-pregeneratePuzzles();
+async function bootstrap() {
+  const config = await fetchGameConstants();
+  initGameConstants(config as Parameters<typeof initGameConstants>[0]);
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+  const { pregeneratePuzzles } = await import('./utils/puzzleCache');
+  pregeneratePuzzles();
+
+  const App = (await import('./App')).default;
+  const { DeviceSimulator } = await import('./components/DeviceSimulator');
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-        <DeviceSimulator>
-            <App />
-        </DeviceSimulator>
+      <DeviceSimulator>
+        <App />
+      </DeviceSimulator>
     </React.StrictMode>,
-)
+  );
+}
+
+bootstrap();

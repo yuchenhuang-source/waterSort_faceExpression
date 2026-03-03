@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { Tube } from './Tube';
 import { Ball } from './Ball';
-import { GAME_CONFIG, UI_CONFIG, BALL_COLORS, BallColor, BALL_RISE_DURATION, BALL_DROP_DURATION, BALL_MOVE_RISE_ALREADY_HOVER, BALL_MOVE_RISE_NORMAL, BALL_MOVE_ARC_TIME, BALL_MOVE_START_DELAY } from '../constants/GameConstants';
+import { Config, BALL_COLORS, BallColor } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
@@ -103,7 +103,7 @@ export class Board extends Phaser.GameObjects.Container {
 
     private createTubes() {
         const requestRedraw = () => this.requestLiquidRedraw();
-        for (let i = 0; i < GAME_CONFIG.TUBE_COUNT; i++) {
+        for (let i = 0; i < Config.GAME_CONFIG.TUBE_COUNT; i++) {
             const tube = new Tube(this.scene, 0, 0, i, requestRedraw);
             tube.on('pointerdown', () => this.handleTubeClick(tube));
             this.add(tube);
@@ -134,11 +134,11 @@ export class Board extends Phaser.GameObjects.Container {
     private updateBoardLiquidMask() {
         if (!this.boardLiquidMaskGraphics) return;
         this.boardLiquidMaskGraphics.clear();
-        const config = this.scene.scale.height > this.scene.scale.width ? GAME_CONFIG.PORTRAIT : GAME_CONFIG.LANDSCAPE;
+        const config = this.scene.scale.height > this.scene.scale.width ? Config.GAME_CONFIG.PORTRAIT : Config.GAME_CONFIG.LANDSCAPE;
         const cfg = config as Record<string, number>;
         const tubesScale = (cfg.TUBES_SCALE ?? 1) || 1;
-        const tubeCols = cfg.TUBE_COLS ?? GAME_CONFIG.TUBE_COLS;
-        const tubeRows = cfg.TUBE_ROWS ?? GAME_CONFIG.TUBE_ROWS;
+        const tubeCols = cfg.TUBE_COLS ?? Config.GAME_CONFIG.TUBE_COLS;
+        const tubeRows = cfg.TUBE_ROWS ?? Config.GAME_CONFIG.TUBE_ROWS;
         const maskWidth = (config.TUBE_WIDTH - 4) * tubesScale;
         const maskHeight = (config.TUBE_HEIGHT - 4) * tubesScale;
         const radius = maskWidth / 2;
@@ -225,7 +225,7 @@ export class Board extends Phaser.GameObjects.Container {
     private generateColorDistribution(): { color: BallColor; count: number }[] {
         const numColors = this.getColorCountByDifficulty();
         const totalTubes = 12; // 需要填满的试管数
-        const ballsPerTube = GAME_CONFIG.TUBE_CAPACITY; // 8
+        const ballsPerTube = Config.GAME_CONFIG.TUBE_CAPACITY; // 8
         
         // 计算每种颜色的基础管数和额外管
         const tubesPerColor = Math.floor(totalTubes / numColors);
@@ -324,8 +324,8 @@ export class Board extends Phaser.GameObjects.Container {
      * 关键：每个位置层必须恰好有 12 球（numFilledTubes），颜色可以跨层
      */
     private generateLayeredPuzzleByDifficulty(emptyTubeCount: number): BallColor[][] {
-        const totalTubes = GAME_CONFIG.TUBE_COUNT;
-        const capacity = GAME_CONFIG.TUBE_CAPACITY; // 8
+        const totalTubes = Config.GAME_CONFIG.TUBE_COUNT;
+        const capacity = Config.GAME_CONFIG.TUBE_CAPACITY; // 8
         const numFilledTubes = totalTubes - emptyTubeCount; // 12个有球的试管
         
         // 1. 获取颜色分配（每种颜色的球数是 8 的倍数）
@@ -427,8 +427,8 @@ export class Board extends Phaser.GameObjects.Container {
      * 原始的分层谜题生成（12色满难度）- 保留作为参考
      */
     private generateLayeredPuzzle(emptyTubeCount: number): BallColor[][] {
-        const totalTubes = GAME_CONFIG.TUBE_COUNT;
-        const capacity = GAME_CONFIG.TUBE_CAPACITY;
+        const totalTubes = Config.GAME_CONFIG.TUBE_COUNT;
+        const capacity = Config.GAME_CONFIG.TUBE_CAPACITY;
         const numFilledTubes = totalTubes - emptyTubeCount; // 12个有球的试管
         
         // 1. 随机打乱颜色顺序，然后分成4组
@@ -539,7 +539,7 @@ export class Board extends Phaser.GameObjects.Container {
      * 验证基于难度的分层谜题是否有效
      */
     private isLayeredPuzzleValidByDifficulty(tubeContents: BallColor[][]): boolean {
-        const capacity = GAME_CONFIG.TUBE_CAPACITY;
+        const capacity = Config.GAME_CONFIG.TUBE_CAPACITY;
         const colorDistribution = this.generateColorDistribution();
         
         // 检查前12个试管是否都是满的
@@ -583,7 +583,7 @@ export class Board extends Phaser.GameObjects.Container {
      * 验证分层谜题是否有效（原始12色版本）
      */
     private isLayeredPuzzleValid(tubeContents: BallColor[][]): boolean {
-        const capacity = GAME_CONFIG.TUBE_CAPACITY;
+        const capacity = Config.GAME_CONFIG.TUBE_CAPACITY;
         
         // 检查前12个试管是否都是满的
         for (let i = 0; i < 12; i++) {
@@ -626,8 +626,8 @@ export class Board extends Phaser.GameObjects.Container {
      * 生成谜题 - 保留原有逆向生成算法作为备用
      */
     private generatePuzzle(numColors: number, emptyTubeCount: number): BallColor[][] {
-        const totalTubes = GAME_CONFIG.TUBE_COUNT;
-        const capacity = GAME_CONFIG.TUBE_CAPACITY;
+        const totalTubes = Config.GAME_CONFIG.TUBE_COUNT;
+        const capacity = Config.GAME_CONFIG.TUBE_CAPACITY;
         
         // 1. 创建已完成状态（每个试管一种颜色，8个同色球）
         const tubeContents: BallColor[][] = [];
@@ -861,7 +861,7 @@ export class Board extends Phaser.GameObjects.Container {
      * 确保有足够的空试管
      */
     private ensureEmptyTubes(tubeContents: BallColor[][], requiredEmpty: number) {
-        const capacity = GAME_CONFIG.TUBE_CAPACITY;
+        const capacity = Config.GAME_CONFIG.TUBE_CAPACITY;
         
         while (true) {
             const emptyCount = tubeContents.filter(t => t.length === 0).length;
@@ -909,7 +909,7 @@ export class Board extends Phaser.GameObjects.Container {
             const firstColor = tube[0];
             const allSameColor = tube.every(ball => ball === firstColor);
             
-            if (allSameColor && tube.length === GAME_CONFIG.TUBE_CAPACITY) {
+            if (allSameColor && tube.length === Config.GAME_CONFIG.TUBE_CAPACITY) {
                 completedCount++;
             } else if (!allSameColor) {
                 mixedCount++;
@@ -1108,7 +1108,7 @@ export class Board extends Phaser.GameObjects.Container {
         
         // 手指动画：模拟点击下压效果
         // 向下移动 + 轻微缩小 + 轻微旋转
-        const { tapDuration, tapRepeatDelay } = UI_CONFIG.HAND_GUIDE;
+        const { tapDuration, tapRepeatDelay } = Config.UI_CONFIG.HAND_GUIDE;
         this.handTween = this.scene.tweens.add({
             targets: this.hand,
             y: this.handBaseY + pressDistance,   // 向下移动
@@ -1213,7 +1213,7 @@ export class Board extends Phaser.GameObjects.Container {
             this.scene.tweens.add({
                 targets: topBall,
                 y: topY,
-                duration: BALL_RISE_DURATION,
+                duration: Config.BALL_RISE_DURATION,
                 ease: 'Power2',
                 onStart: () => {
                     // 上升时：若下方有相邻液体，在相邻液面播放水花（颜色为相邻液体颜色）
@@ -1243,7 +1243,7 @@ export class Board extends Phaser.GameObjects.Container {
                 this.scene.tweens.add({
                     targets: topBall,
                     y: targetY,
-                    duration: BALL_DROP_DURATION,
+                    duration: Config.BALL_DROP_DURATION,
                     ease: 'Quad.easeIn',
                     onComplete: () => {
                         if (!topBall.scene || !tube.scene) return;
@@ -1276,7 +1276,7 @@ export class Board extends Phaser.GameObjects.Container {
         // 2. 目标试管为空 OR 目标试管顶部颜色与源球颜色相同
         if (!target.isFull() && (target.isEmpty() || targetColor === sourceColor)) {
             // 计算可以移动多少个球
-            const availableSpace = GAME_CONFIG.TUBE_CAPACITY - target.balls.length;
+            const availableSpace = Config.GAME_CONFIG.TUBE_CAPACITY - target.balls.length;
             const ballsToMove = sourceBalls.slice(0, availableSpace); // 取前N个能放下的球
             
             if (ballsToMove.length === 0) return false;
@@ -1325,7 +1325,7 @@ export class Board extends Phaser.GameObjects.Container {
             // 然后为每个球创建独立的移动动画
             ballsToMove.forEach((ball, index) => {
                 // ballsToMove[0] 是顶球，先启动
-                const startDelay = index * BALL_MOVE_START_DELAY;
+                const startDelay = index * Config.BALL_MOVE_START_DELAY;
                 
                 // 计算球在 target.balls 中的索引
                 // ballsToMove[0] (顶球，先动) -> 落在 originalBallCount 位置（新球中的最下面）
@@ -1347,8 +1347,8 @@ export class Board extends Phaser.GameObjects.Container {
                 const isAlreadyHovering = index === 0 && ball.y < 0;
                 
                 // 动画参数（时长可在 GameConstants 中调整）
-                const riseTime = isAlreadyHovering ? BALL_MOVE_RISE_ALREADY_HOVER : BALL_MOVE_RISE_NORMAL;
-                const arcTime = BALL_MOVE_ARC_TIME;
+                const riseTime = isAlreadyHovering ? Config.BALL_MOVE_RISE_ALREADY_HOVER : Config.BALL_MOVE_RISE_NORMAL;
+                const arcTime = Config.BALL_MOVE_ARC_TIME;
                 
                 // 使用连续的tween实现流畅动画
                 // 第一步：快速上升到源试管上方；该球开始上升时从源试管移除一层并刷新液面（分层更新）
@@ -1416,7 +1416,7 @@ export class Board extends Phaser.GameObjects.Container {
                                         this.scene.tweens.add({
                                             targets: ball,
                                             y: finalY,
-                                            duration: BALL_DROP_DURATION, // 再次加速下落
+                                            duration: Config.BALL_DROP_DURATION, // 再次加速下落
                                             ease: 'Quad.easeIn',
                                             onComplete: () => {
                                                 if (!ball.scene || !target.scene) return;
@@ -1429,7 +1429,7 @@ export class Board extends Phaser.GameObjects.Container {
                                                 target.animateWaterRiseWithSplash(ball.color, () => {
                                                     if (!ball.scene || !target.scene) return;
                                                     // @ts-ignore
-                                                    ball.setScale(target.currentBallSize / GAME_CONFIG.BALL_SIZE);
+                                                    ball.setScale(target.currentBallSize / Config.GAME_CONFIG.BALL_SIZE);
                                                     // @ts-ignore
                                                     target.bringToTop(target.tubeBodyImage);
                                                     // @ts-ignore
@@ -1541,7 +1541,7 @@ export class Board extends Phaser.GameObjects.Container {
                 // 目标为空或颜色匹配
                 if (target.isEmpty() || targetColor === topColor) {
                     // 检查是否有空间
-                    const availableSpace = GAME_CONFIG.TUBE_CAPACITY - target.balls.length;
+                    const availableSpace = Config.GAME_CONFIG.TUBE_CAPACITY - target.balls.length;
                     if (availableSpace > 0) {
                         // 找到一个有效移动
                         return true;
@@ -1647,7 +1647,7 @@ export class Board extends Phaser.GameObjects.Container {
                 if (!target.isEmpty() && targetColor !== topColor) continue;
                 
                 // 计算可移动球数
-                const availableSpace = GAME_CONFIG.TUBE_CAPACITY - target.balls.length;
+                const availableSpace = Config.GAME_CONFIG.TUBE_CAPACITY - target.balls.length;
                 const ballCount = Math.min(topBalls.length, availableSpace);
                 
                 if (ballCount === 0) continue;
@@ -1672,7 +1672,7 @@ export class Board extends Phaser.GameObjects.Container {
         // 1. 完成试管奖励 (+100)
         // 如果移动后目标试管达到满且全部同色
         const targetBallsAfterMove = target.balls.length + ballCount;
-        if (targetBallsAfterMove === GAME_CONFIG.TUBE_CAPACITY) {
+        if (targetBallsAfterMove === Config.GAME_CONFIG.TUBE_CAPACITY) {
             // 检查移动后是否全部同色
             const targetCurrentColor = target.getTopColor();
             if (target.isEmpty() || targetCurrentColor === color) {
@@ -1771,7 +1771,7 @@ export class Board extends Phaser.GameObjects.Container {
         }
         
         // 平滑移动到目标位置
-        const { moveDuration } = UI_CONFIG.HAND_GUIDE;
+        const { moveDuration } = Config.UI_CONFIG.HAND_GUIDE;
         this.handMoveTween = this.scene.tweens.add({
             targets: this.hand,
             x: globalPos.x,
@@ -1802,7 +1802,7 @@ export class Board extends Phaser.GameObjects.Container {
         this.hand.setVisible(true);
         this.startHandAnimation();
         
-        const { fadeDuration } = UI_CONFIG.HAND_GUIDE;
+        const { fadeDuration } = Config.UI_CONFIG.HAND_GUIDE;
         this.handFadeTween = this.scene.tweens.add({
             targets: this.hand,
             alpha: 1,
@@ -1829,7 +1829,7 @@ export class Board extends Phaser.GameObjects.Container {
             this.handMoveTween = null;
         }
         
-        const { fadeDuration } = UI_CONFIG.HAND_GUIDE;
+        const { fadeDuration } = Config.UI_CONFIG.HAND_GUIDE;
         this.handFadeTween = this.scene.tweens.add({
             targets: this.hand,
             alpha: 0,
@@ -1882,18 +1882,18 @@ export class Board extends Phaser.GameObjects.Container {
 
     private handleResize(gameSize: Phaser.Structs.Size) {
         const isPortrait = gameSize.height > gameSize.width;
-        const config = isPortrait ? GAME_CONFIG.PORTRAIT : GAME_CONFIG.LANDSCAPE;
+        const config = isPortrait ? Config.GAME_CONFIG.PORTRAIT : Config.GAME_CONFIG.LANDSCAPE;
         const cfg = config as Record<string, number>;
         const tubesScale = (cfg.TUBES_SCALE ?? 1) || 1;
 
         // 计算缩放比例：竖屏原始，横屏按试管宽度比例
-        const scale = isPortrait ? 1 : (config.TUBE_WIDTH / GAME_CONFIG.PORTRAIT.TUBE_WIDTH);
+        const scale = isPortrait ? 1 : (config.TUBE_WIDTH / Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH);
 
         // 更新所有试管的尺寸（应用 TUBES_SCALE）
         const tubeWidth = config.TUBE_WIDTH * tubesScale;
         const tubeHeight = config.TUBE_HEIGHT * tubesScale;
-        const ballSize = GAME_CONFIG.BALL_SIZE * scale * tubesScale;
-        const ballSpacing = GAME_CONFIG.BALL_SPACING * scale * tubesScale;
+        const ballSize = Config.GAME_CONFIG.BALL_SIZE * scale * tubesScale;
+        const ballSpacing = Config.GAME_CONFIG.BALL_SPACING * scale * tubesScale;
 
         this.tubes.forEach(tube => {
             tube.updateSize(tubeWidth, tubeHeight, ballSize, ballSpacing);
@@ -1912,8 +1912,8 @@ export class Board extends Phaser.GameObjects.Container {
         }
 
         // 重新排列试管（以所有 tubes 的中点定位，间距也应用 TUBES_SCALE）
-        const tubeCols = cfg.TUBE_COLS ?? GAME_CONFIG.TUBE_COLS;
-        const tubeRows = cfg.TUBE_ROWS ?? GAME_CONFIG.TUBE_ROWS;
+        const tubeCols = cfg.TUBE_COLS ?? Config.GAME_CONFIG.TUBE_COLS;
+        const tubeRows = cfg.TUBE_ROWS ?? Config.GAME_CONFIG.TUBE_ROWS;
         const colOffsetX = config.COL_OFFSET_X * tubesScale;
         const rowSpacingY = config.ROW_SPACING_Y * tubesScale;
         const totalWidth = (tubeCols - 1) * colOffsetX;

@@ -6,21 +6,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.join(__dirname, '..', 'dist', 'index.html');
 
 if (fs.existsSync(distPath)) {
-    console.log('Removing script tag, type="module" and crossorigin from index.html');
+    console.log('Removing crossorigin from script tag (keeping type="module" for import.meta support)');
     let html = fs.readFileSync(distPath, 'utf8');
     html = html.replace("<script></script>", '<script/>');
     
-    // Remove type="module" and crossorigin from all script tags and wrap content with DOMContentLoaded
-    html = html.replace(/(<script[^>]*?)(\s+type="module")?(\s+crossorigin[^>\s]*)?([^>]*>)([\s\S]*?)(<\/script>)/gi,
-        (match, openTag, typeModule, crossorigin, attrs, content, closeTag) => {
-            // If content is not empty, wrap it with DOMContentLoaded
-            if (content.trim()) {
-                const wrappedContent = `document.addEventListener('DOMContentLoaded', function() {${content}});`;
-                return `${openTag}${attrs}${wrappedContent}${closeTag}`;
-            }
-            return `${openTag}${attrs}${content}${closeTag}`;
-        }
-    );
+    // Only remove crossorigin; keep type="module" because bundled code uses import.meta
+    html = html.replace(/(<script[^>]*?)(\s+crossorigin[^>\s]*)([^>]*>)/gi, '$1$3');
     
     fs.writeFileSync(distPath, html);
 }

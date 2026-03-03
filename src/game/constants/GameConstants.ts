@@ -1,5 +1,3 @@
-import configJson from './game-constants-config.json';
-
 export enum BallColor {
     BROWN = 'brown',
     ORANGE = 'orange',
@@ -57,6 +55,8 @@ function deepMerge<T>(target: T, source: Partial<T>): T {
     }
     return result;
 }
+
+export type DefaultConfigType = typeof defaultConfig;
 
 const defaultConfig = {
     LIQUID_BALL_DISPLAY_WIDTH_RATIO: 1.2,
@@ -166,58 +166,33 @@ const defaultConfig = {
     }
 };
 
-const cfg = deepMerge(defaultConfig, configJson as typeof defaultConfig);
+let _cfg = deepMerge(defaultConfig, {} as Partial<DefaultConfigType>);
 
-/** 液体球帧动画的 displayWidth 相对试管 displayWidth 的比例，便于调试 */
-export const LIQUID_BALL_DISPLAY_WIDTH_RATIO = cfg.LIQUID_BALL_DISPLAY_WIDTH_RATIO;
+/** 运行时初始化配置，bootstrap 时调用 */
+export function initGameConstants(config: Partial<DefaultConfigType>): void {
+    _cfg = deepMerge(defaultConfig, config);
+}
 
-/** 水球整体尺寸倍数，可调小水球：1.0 为默认，<1 缩小（如 0.8、0.9） */
-export const LIQUID_BALL_SIZE_SCALE = cfg.LIQUID_BALL_SIZE_SCALE;
-
-/** 试管内液体垂直缩放：基于试管高度自动计算，1 为默认填满，>1 每层更高，<1 每层更矮。改变 TUBE_WIDTH/TUBE_HEIGHT 后仍正确 */
-export const LIQUID_HEIGHT_SCALE = cfg.LIQUID_HEIGHT_SCALE;
-
-/** 圆球表情在小球上的位置偏移（相对小球中心），可调整：X 正值向右，Y 正值向下 */
-export const BALL_EXPRESSION_OFFSET_X = cfg.BALL_EXPRESSION_OFFSET_X;
-export const BALL_EXPRESSION_OFFSET_Y = cfg.BALL_EXPRESSION_OFFSET_Y;
-
-/** 圆球表情在小球上的尺寸倍数，1.0 为默认，可调整：>1 放大，<1 缩小 */
-export const BALL_EXPRESSION_SCALE_RATIO = cfg.BALL_EXPRESSION_SCALE_RATIO;
-
-/** 圆球表情动画帧率，越大播放越快（默认 12） */
-export const BALL_EXPRESSION_FRAME_RATE = cfg.BALL_EXPRESSION_FRAME_RATE;
-
-/** 水花 displayWidth 相对试管宽度的比例，便于调试 */
-export const SPLASH_TUBE_WIDTH_RATIO = cfg.SPLASH_TUBE_WIDTH_RATIO;
-
-/** 水花位置垂直偏移补正：为水花高度的比例，正值向下（暂定 0.2 = 20%） */
-export const SPLASH_VERTICAL_OFFSET_RATIO = cfg.SPLASH_VERTICAL_OFFSET_RATIO;
-
-/** 水花动画播放帧率，越大越快（默认 30） */
-export const SPLASH_FRAME_RATE = cfg.SPLASH_FRAME_RATE;
-
-/** 液体上升动画播放帧率，越大越快（默认 30） */
-export const LIQUID_UP_FRAME_RATE = cfg.LIQUID_UP_FRAME_RATE;
-
-/** 小球选中飞起动画时长（ms），越小越快 */
-export const BALL_RISE_DURATION = cfg.BALL_RISE_DURATION;
-
-/** 小球落回试管动画时长（ms），越小越快 */
-export const BALL_DROP_DURATION = cfg.BALL_DROP_DURATION;
-
-/** 小球跨试管移动：已悬浮顶球快速调整时长（ms），越小越快 */
-export const BALL_MOVE_RISE_ALREADY_HOVER = cfg.BALL_MOVE_RISE_ALREADY_HOVER;
-/** 小球跨试管移动：从试管内上升到试管口上方的时长（ms），越小越快 */
-export const BALL_MOVE_RISE_NORMAL = cfg.BALL_MOVE_RISE_NORMAL;
-
-/** 小球跨试管移动：弧线飞行时长（ms），越小越快 */
-export const BALL_MOVE_ARC_TIME = cfg.BALL_MOVE_ARC_TIME;
-
-/** 小球跨试管移动：每颗球启动的间隔（ms），用于多球联动 */
-export const BALL_MOVE_START_DELAY = cfg.BALL_MOVE_START_DELAY;
-
-/** 试管内液体水平面上升动画时长（ms），球落定后水位渐升 */
-export const WATER_RISE_DURATION = cfg.WATER_RISE_DURATION;
-
-export const GAME_CONFIG = cfg.GAME_CONFIG;
-export const UI_CONFIG = cfg.UI_CONFIG;
+/** 运行时配置对象，所有配置项通过 getter 读取 */
+export const Config = {
+    get LIQUID_BALL_DISPLAY_WIDTH_RATIO() { return _cfg.LIQUID_BALL_DISPLAY_WIDTH_RATIO; },
+    get LIQUID_BALL_SIZE_SCALE() { return _cfg.LIQUID_BALL_SIZE_SCALE; },
+    get LIQUID_HEIGHT_SCALE() { return _cfg.LIQUID_HEIGHT_SCALE; },
+    get BALL_EXPRESSION_OFFSET_X() { return _cfg.BALL_EXPRESSION_OFFSET_X; },
+    get BALL_EXPRESSION_OFFSET_Y() { return _cfg.BALL_EXPRESSION_OFFSET_Y; },
+    get BALL_EXPRESSION_SCALE_RATIO() { return _cfg.BALL_EXPRESSION_SCALE_RATIO; },
+    get BALL_EXPRESSION_FRAME_RATE() { return _cfg.BALL_EXPRESSION_FRAME_RATE; },
+    get SPLASH_TUBE_WIDTH_RATIO() { return _cfg.SPLASH_TUBE_WIDTH_RATIO; },
+    get SPLASH_VERTICAL_OFFSET_RATIO() { return _cfg.SPLASH_VERTICAL_OFFSET_RATIO; },
+    get SPLASH_FRAME_RATE() { return _cfg.SPLASH_FRAME_RATE; },
+    get LIQUID_UP_FRAME_RATE() { return _cfg.LIQUID_UP_FRAME_RATE; },
+    get BALL_RISE_DURATION() { return _cfg.BALL_RISE_DURATION; },
+    get BALL_DROP_DURATION() { return _cfg.BALL_DROP_DURATION; },
+    get BALL_MOVE_RISE_ALREADY_HOVER() { return _cfg.BALL_MOVE_RISE_ALREADY_HOVER; },
+    get BALL_MOVE_RISE_NORMAL() { return _cfg.BALL_MOVE_RISE_NORMAL; },
+    get BALL_MOVE_ARC_TIME() { return _cfg.BALL_MOVE_ARC_TIME; },
+    get BALL_MOVE_START_DELAY() { return _cfg.BALL_MOVE_START_DELAY; },
+    get WATER_RISE_DURATION() { return _cfg.WATER_RISE_DURATION; },
+    get GAME_CONFIG() { return _cfg.GAME_CONFIG; },
+    get UI_CONFIG() { return _cfg.UI_CONFIG; },
+};

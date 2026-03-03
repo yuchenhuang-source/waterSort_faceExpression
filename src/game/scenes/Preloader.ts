@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { BALL_EXPRESSION_FRAME_RATE, LIQUID_UP_FRAME_RATE, SPLASH_FRAME_RATE } from '../constants/GameConstants';
+import { Config } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
@@ -289,7 +289,7 @@ export class Preloader extends Scene {
         this.anims.create({
             key: 'liquid_up',
             frames: this.generateFrames('up', 1, 10),
-            frameRate: LIQUID_UP_FRAME_RATE,
+            frameRate: Config.LIQUID_UP_FRAME_RATE,
             repeat: 0
         });
 
@@ -322,7 +322,7 @@ export class Preloader extends Scene {
         this.anims.create({
             key: 'liquid_splash',
             frames: this.generateFrames('splash', 0, 18),
-            frameRate: SPLASH_FRAME_RATE,
+            frameRate: Config.SPLASH_FRAME_RATE,
             repeat: 0
         });
     }
@@ -366,7 +366,7 @@ export class Preloader extends Scene {
         this.anims.create({
             key: 'ball_expression',
             frames: ballExpressionFrames,
-            frameRate: BALL_EXPRESSION_FRAME_RATE,
+            frameRate: Config.BALL_EXPRESSION_FRAME_RATE,
             repeat: -1
         });
 

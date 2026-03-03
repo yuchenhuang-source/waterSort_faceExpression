@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
 import { Ball } from './Ball';
-import { BallColor, BALL_RISE_DURATION, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, LIQUID_HEIGHT_SCALE, SPLASH_TUBE_WIDTH_RATIO, SPLASH_VERTICAL_OFFSET_RATIO, WATER_RISE_DURATION } from '../constants/GameConstants';
+import { BallColor, Config } from '../constants/GameConstants';
 import { getLiquidColors, getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
@@ -83,10 +83,10 @@ export class Tube extends Phaser.GameObjects.Container {
         this.onRequestLiquidRedraw = onRequestLiquidRedraw ?? null;
 
         // 默认尺寸
-        this.currentWidth = GAME_CONFIG.PORTRAIT.TUBE_WIDTH;
-        this.currentHeight = GAME_CONFIG.PORTRAIT.TUBE_HEIGHT;
-        this.currentBallSize = GAME_CONFIG.BALL_SIZE;
-        this.currentBallSpacing = GAME_CONFIG.BALL_SPACING;
+        this.currentWidth = Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH;
+        this.currentHeight = Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT;
+        this.currentBallSize = Config.GAME_CONFIG.BALL_SIZE;
+        this.currentBallSpacing = Config.GAME_CONFIG.BALL_SPACING;
 
         // 1. 创建遮罩图片 (保留引用，但暂时使用几何遮罩)
         this.maskImage = scene.add.image(0, 0, 'tube_mask');
@@ -208,7 +208,7 @@ export class Tube extends Phaser.GameObjects.Container {
 
     /** 每层液体的高度，随试管高度缩放，改变 TUBE_WIDTH/TUBE_HEIGHT 后仍正确 */
     private getUnitHeight(): number {
-        return (this.currentHeight / GAME_CONFIG.TUBE_CAPACITY) * LIQUID_HEIGHT_SCALE;
+        return (this.currentHeight / Config.GAME_CONFIG.TUBE_CAPACITY) * Config.LIQUID_HEIGHT_SCALE;
     }
 
     public updateSize(width: number, height: number, ballSize: number, ballSpacing: number) {
@@ -253,10 +253,10 @@ export class Tube extends Phaser.GameObjects.Container {
         // 更新蜡烛尺寸（如果已完成显示蜡烛）
         if (this.candleImage) {
             const candleScale = height / this.candleImage.texture.getSourceImage().height;
-            this.candleImage.setScale(candleScale * GAME_CONFIG.CANDLE_SCALE_FACTOR);
+            this.candleImage.setScale(candleScale * Config.GAME_CONFIG.CANDLE_SCALE_FACTOR);
             
             // 更新位置偏移，保持底部对齐
-            const heightDiff = height * (GAME_CONFIG.CANDLE_SCALE_FACTOR - 1);
+            const heightDiff = height * (Config.GAME_CONFIG.CANDLE_SCALE_FACTOR - 1);
             const candleOffsetY = -heightDiff / 2;
             this.candleImage.setPosition(0, candleOffsetY);
 
@@ -267,7 +267,7 @@ export class Tube extends Phaser.GameObjects.Container {
                 const candleTopY = candleOffsetY - (this.candleImage.displayHeight / 2);
                 
                 // 根据蜡烛宽度调整火焰大小
-                const fireScale = (this.currentWidth / GAME_CONFIG.PORTRAIT.TUBE_WIDTH) * 0.8; // 火焰稍小一些
+                const fireScale = (this.currentWidth / Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH) * 0.8; // 火焰稍小一些
                 this.fireSprite.setScale(fireScale);
                 // 应用向下偏移量
                 this.fireSprite.setPosition(0, candleTopY + Tube.FIRE_OFFSET_Y);
@@ -301,7 +301,7 @@ export class Tube extends Phaser.GameObjects.Container {
         }
 
         const unitHeight = this.getUnitHeight();
-        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         const width = this.currentWidth;
         let currentY = bottomY;
         let topColor: BallColor | null = null;
@@ -450,7 +450,7 @@ export class Tube extends Phaser.GameObjects.Container {
 
         // 计算单位高度 (保持与球的大小一致，或者填满试管)
         const unitHeight = this.getUnitHeight();
-        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         
         // 绘制液体柱：顶球若正在试管外悬浮则不参与；若正在加入液体则先不画最后一颗，改画 adding 块
         let currentY = bottomY;
@@ -676,7 +676,7 @@ export class Tube extends Phaser.GameObjects.Container {
 
 
     public addBall(ball: Ball, animate: boolean = true, skipDraw: boolean = false) {
-        if (this.balls.length >= GAME_CONFIG.TUBE_CAPACITY) return false;
+        if (this.balls.length >= Config.GAME_CONFIG.TUBE_CAPACITY) return false;
 
         // 将球添加到列表中
         this.balls.push(ball);
@@ -688,11 +688,11 @@ export class Tube extends Phaser.GameObjects.Container {
         // 确保球处于隐藏状态
         ball.setLiquidState('hidden');
         // 统一设置球容器缩放，与落地时 setScale 一致，避免多操作后尺寸不一致
-        ball.setScale(this.currentBallSize / GAME_CONFIG.BALL_SIZE);
+        ball.setScale(this.currentBallSize / Config.GAME_CONFIG.BALL_SIZE);
 
         // 计算目标位置（液面顶部）
         const unitHeight = this.getUnitHeight();
-        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         const targetY = bottomY - (this.balls.length * unitHeight);
         
         // 关键：虽然球不可见，但必须设置其位置，因为 Board 会读取 ball.y 来计算动画起点
@@ -707,7 +707,7 @@ export class Tube extends Phaser.GameObjects.Container {
             const dropSprite = this.scene.add.sprite(0, -this.currentHeight / 2 - 50, 'liquid_drop');
             dropSprite.setTintFill(getLiquidColors()[ball.color]);
             const dropFrameW = dropSprite.width || 129;
-            const dropScale = (this.getCachedTubeDisplayWidth() * LIQUID_BALL_DISPLAY_WIDTH_RATIO * LIQUID_BALL_SIZE_SCALE) / dropFrameW;
+            const dropScale = (this.getCachedTubeDisplayWidth() * Config.LIQUID_BALL_DISPLAY_WIDTH_RATIO * Config.LIQUID_BALL_SIZE_SCALE) / dropFrameW;
             dropSprite.setScale(dropScale);
             this.add(dropSprite);
             this.sendToBack(dropSprite);
@@ -760,7 +760,7 @@ export class Tube extends Phaser.GameObjects.Container {
             this.scene.tweens.add({
                 targets: this,
                 removingBallHeight: 0,
-                duration: BALL_RISE_DURATION, // 与小球飞起动画同步
+                duration: Config.BALL_RISE_DURATION, // 与小球飞起动画同步
                 onUpdate: () => {
                     this.drawLiquidThrottled(50); // 约 20fps 重绘，减轻交互卡顿
                 },
@@ -801,7 +801,7 @@ export class Tube extends Phaser.GameObjects.Container {
      */
     private getSurfaceYForBallCount(ballCount: number): number {
         const unitHeight = this.getUnitHeight();
-        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         return bottomY - ballCount * unitHeight;
     }
 
@@ -830,10 +830,10 @@ export class Tube extends Phaser.GameObjects.Container {
         const splashSprite = this.scene.add.sprite(0, surfaceY, 'splash_00000');
         splashSprite.setData('isLiquidSplash', true);
         splashSprite.setTintFill(getLiquidColors()[color]);
-        const splashW = this.currentWidth * SPLASH_TUBE_WIDTH_RATIO;
+        const splashW = this.currentWidth * Config.SPLASH_TUBE_WIDTH_RATIO;
         splashSprite.setDisplaySize(splashW, splashW * (splashSprite.height / splashSprite.width));
         splashSprite.setOrigin(0.5, 1);
-        const splashY = surfaceY + splashSprite.displayHeight * SPLASH_VERTICAL_OFFSET_RATIO;
+        const splashY = surfaceY + splashSprite.displayHeight * Config.SPLASH_VERTICAL_OFFSET_RATIO;
         splashSprite.setPosition(0, splashY);
         this.add(splashSprite);
         this.moveTo(splashSprite, this.getSplashInsertIndex(splashY));
@@ -880,7 +880,7 @@ export class Tube extends Phaser.GameObjects.Container {
             return;
         }
         const unitHeight = this.getUnitHeight();
-        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         const startSurfaceY = bottomY - (this.balls.length - 1) * unitHeight; // 新块未长高时的液面 Y = 相邻液体层顶部
 
         this.addingBallColor = color;
@@ -915,7 +915,7 @@ export class Tube extends Phaser.GameObjects.Container {
         const defaultEase = isLast ? 'Quad.easeOut' : 'Linear';
         getOutputConfigValueAsync<{ ease?: string; duration?: number; easeParams?: number[] }>(configKey).then((cfg) => {
             const ease = (cfg?.ease as string) ?? defaultEase;
-            const duration = cfg?.duration ?? WATER_RISE_DURATION;
+            const duration = cfg?.duration ?? Config.WATER_RISE_DURATION;
             const easeParams = Array.isArray(cfg?.easeParams) ? cfg.easeParams : undefined;
             // 延迟一帧再启动 tween，确保首帧用 addingBallHeight=0 绘制的液面（含下边缘 surface）先被渲染
             this.scene.time.delayedCall(0, () => {
@@ -1058,7 +1058,7 @@ export class Tube extends Phaser.GameObjects.Container {
     }
 
     public isFull(): boolean {
-        return this.balls.length >= GAME_CONFIG.TUBE_CAPACITY;
+        return this.balls.length >= Config.GAME_CONFIG.TUBE_CAPACITY;
     }
 
     public isEmpty(): boolean {
@@ -1067,12 +1067,12 @@ export class Tube extends Phaser.GameObjects.Container {
 
     public getBallY(index: number): number {
         const unitHeight = this.getUnitHeight();
-        const bottomY = this.currentHeight / 2 - 25 * (this.currentHeight / GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const bottomY = this.currentHeight / 2 - 25 * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         return bottomY - index * unitHeight - this.currentBallSize / 2;
     }
 
     public checkCompletion() {
-        if (this.balls.length !== GAME_CONFIG.TUBE_CAPACITY) return;
+        if (this.balls.length !== Config.GAME_CONFIG.TUBE_CAPACITY) return;
 
         const firstColor = this.balls[0].color;
         const allSameColor = this.balls.every(ball => ball.color === firstColor);
@@ -1096,7 +1096,7 @@ export class Tube extends Phaser.GameObjects.Container {
 
         // 条件：不为空、不为满
         const notEmpty = this.balls.length > 0;
-        const notFull = this.balls.length < GAME_CONFIG.TUBE_CAPACITY;
+        const notFull = this.balls.length < Config.GAME_CONFIG.TUBE_CAPACITY;
         
         if (!notEmpty || !notFull) {
             this.hideSameColorHighlight();
@@ -1210,7 +1210,7 @@ export class Tube extends Phaser.GameObjects.Container {
         // 2a. 创建粒子特效
         try {
             this.particleEffect = SpineLoader.create(this.scene, 0, offScreenY, 'particle', 'High', false);
-            this.particleEffect.setScale(this.currentWidth / GAME_CONFIG.PORTRAIT.TUBE_WIDTH);
+            this.particleEffect.setScale(this.currentWidth / Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH);
             this.particleEffect.setDepth(100);
             this.add(this.particleEffect);
             
@@ -1227,7 +1227,7 @@ export class Tube extends Phaser.GameObjects.Container {
         // 2b. 创建烟花特效
         try {
             this.fireworkEffect = SpineLoader.create(this.scene, 0, offScreenY, 'firework', 'high', false);
-            this.fireworkEffect.setScale(this.currentWidth / GAME_CONFIG.PORTRAIT.TUBE_WIDTH);
+            this.fireworkEffect.setScale(this.currentWidth / Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH);
             this.fireworkEffect.setDepth(101);
             this.add(this.fireworkEffect);
             
@@ -1244,12 +1244,12 @@ export class Tube extends Phaser.GameObjects.Container {
         // 3. 先创建蜡烛（透明状态）
         this.candleImage = this.scene.add.image(0, 0, `candle_${color}`);
         const candleScale = this.currentHeight / this.candleImage.height;
-        const finalScale = candleScale * GAME_CONFIG.CANDLE_SCALE_FACTOR;
+        const finalScale = candleScale * Config.GAME_CONFIG.CANDLE_SCALE_FACTOR;
         this.candleImage.setScale(finalScale);
         
         // 计算位置偏移，使蜡烛底部与试管底部对齐
         // 蜡烛放大后高度增加，需要向上移动以保持底部对齐
-        const heightDiff = this.currentHeight * (GAME_CONFIG.CANDLE_SCALE_FACTOR - 1);
+        const heightDiff = this.currentHeight * (Config.GAME_CONFIG.CANDLE_SCALE_FACTOR - 1);
         const candleOffsetY = -heightDiff / 2;
         this.candleImage.setPosition(0, candleOffsetY);
         
@@ -1261,7 +1261,7 @@ export class Tube extends Phaser.GameObjects.Container {
         // 计算蜡烛顶部位置
         const candleTopY = candleOffsetY - (this.candleImage.displayHeight / 2);
         // 根据蜡烛宽度调整火焰大小
-        const fireScale = (this.currentWidth / GAME_CONFIG.PORTRAIT.TUBE_WIDTH) * 0.8; // 火焰稍小一些
+        const fireScale = (this.currentWidth / Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH) * 0.8; // 火焰稍小一些
         this.fireSprite.setScale(fireScale);
         // 应用向下偏移量
         this.fireSprite.setPosition(0, candleTopY + Tube.FIRE_OFFSET_Y);

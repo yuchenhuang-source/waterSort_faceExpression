@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BallColor, UI_CONFIG } from '../game/constants/GameConstants';
+import { BallColor, Config } from '../game/constants/GameConstants';
 import { generatePuzzleWithAdapter } from '../utils/puzzle-adapter';
 import { getCachedPuzzle, waitForPregenerate } from '../utils/puzzleCache';
 import { getLiquidColors, getOutputConfigValueAsync } from '../utils/outputConfigLoader';
@@ -73,7 +73,7 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 })
         // getLiquidColors 依赖 getOutputConfigAsync 的缓存，pregenerate 已先调用
         const liquidColors = getLiquidColors();
         const fromOutput = await getOutputConfigValueAsync<LevelPreviewConfig>('levelPreview');
-        const fromUI = UI_CONFIG?.LEVEL_SELECT;
+        const fromUI = Config.UI_CONFIG?.LEVEL_SELECT;
         const previewConfig: LevelPreviewConfig = {
           scale: fromUI?.PREVIEW_SCALE ?? fromOutput?.scale ?? 1,
           translateX: fromUI?.PREVIEW_OFFSET_X ?? fromOutput?.translateX ?? 0,
@@ -100,7 +100,7 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 })
   const scale = previewConfig.scale ?? 1;
   const tx = previewConfig.translateX ?? 0;
   const ty = previewConfig.translateY ?? 0;
-  const liquidHeightRatio = UI_CONFIG?.LEVEL_SELECT?.PREVIEW_LIQUID_HEIGHT_RATIO ?? 0.85;
+  const liquidHeightRatio = Config.UI_CONFIG?.LEVEL_SELECT?.PREVIEW_LIQUID_HEIGHT_RATIO ?? 0.85;
 
   return (
     <div

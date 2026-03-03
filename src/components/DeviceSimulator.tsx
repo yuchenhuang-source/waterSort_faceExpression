@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { ConstantsEditor } from './ConstantsEditor';
 import './DeviceSimulator.css';
 
 const PRESETS = [
@@ -46,6 +47,9 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
   const [height, setHeight] = useState(initial.h);
   const [scale, setScale] = useState(initial.scale);
   const [lang, setLang] = useState(initial.lang);
+  const [showConstantsEditor, setShowConstantsEditor] = useState(true);
+  const [iconDebug, setIconDebug] = useState<{ visibleRect: { x: number; y: number; width: number; height: number }; iconRect: { x: number; y: number; w: number; h: number }; inBounds: boolean } | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const search = typeof window !== 'undefined' ? window.location.search : '';
   const urlParams = new URLSearchParams(search);
@@ -63,6 +67,61 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
     const qs = p.toString();
     window.history.replaceState({}, '', `${window.location.pathname || '/'}${qs ? '?' + qs : ''}`);
   }, [showSimulator, width, height, scale, lang]);
+
+  const reloadIframe = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (iframe?.src) {
+      try {
+        iframe.contentWindow?.location.reload();
+      } catch {
+        iframe.src = iframe.src;
+      }
+    }
+  }, []);
+
+  // 热更新时只重载模拟器 iframe，不刷新整个页面
+  useEffect(() => {
+    if (!showSimulator || typeof import.meta.hot === 'undefined') return;
+    import.meta.hot.on('vite:afterUpdate', reloadIframe);
+    return () => {
+      import.meta.hot?.off('vite:afterUpdate', reloadIframe);
+    };
+  }, [showSimulator, reloadIframe]);
+
+  // 数值编辑保存后只重载 iframe，不刷新整个页面
+  useEffect(() => {
+    if (!showSimulator || typeof window === 'undefined') return;
+    const handler = () => reloadIframe();
+    window.addEventListener('constants-saved', handler);
+    return () => window.removeEventListener('constants-saved', handler);
+  }, [showSimulator, reloadIframe]);
+
+  // 监听 iframe 内游戏的 icon-debug 上报（postMessage + 轮询 __iconDebug 兜底）
+  useEffect(() => {
+    if (!showSimulator || typeof window === 'undefined') return;
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'icon-debug' && e.data.visibleRect && e.data.iconRect && typeof e.data.inBounds === 'boolean') {
+        setIconDebug({ visibleRect: e.data.visibleRect, iconRect: e.data.iconRect, inBounds: e.data.inBounds });
+      }
+    };
+    window.addEventListener('message', handler);
+    const poll = () => {
+      try {
+        const win = iframeRef.current?.contentWindow as Window & { __iconDebug?: { visibleRect: unknown; iconRect: unknown; inBounds: boolean } } | null;
+        const d = win?.__iconDebug;
+        if (d && d.visibleRect && d.iconRect && typeof d.inBounds === 'boolean') {
+          setIconDebug({ visibleRect: d.visibleRect as { x: number; y: number; width: number; height: number }, iconRect: d.iconRect as { x: number; y: number; w: number; h: number }, inBounds: d.inBounds });
+        }
+      } catch {
+        // cross-origin or not ready
+      }
+    };
+    const id = window.setInterval(poll, 500);
+    return () => {
+      window.removeEventListener('message', handler);
+      window.clearInterval(id);
+    };
+  }, [showSimulator]);
 
   const rotate = useCallback(() => {
     setWidth(() => height);
@@ -174,20 +233,47 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
         >
           Open full screen ↗
         </a>
-      </div>
-      <div className="device-simulator-frame">
-        <div
-          className="device-simulator-iframe-wrapper"
-          style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+        <button
+          type="button"
+          onClick={() => setShowConstantsEditor((v) => !v)}
+          className={`sim-constants-btn ${showConstantsEditor ? 'is-active' : ''}`}
+          title="数值编辑"
         >
-          <iframe
-            src={simUrl}
-            title="Device simulator"
-            style={{ width: width, height: height }}
-            className="device-simulator-iframe"
-            allow="autoplay"
-          />
+          {showConstantsEditor ? '✕ 关闭' : '⚙ 数值编辑'}
+        </button>
+        <span
+          className="sim-icon-debug"
+          data-testid="icon-debug"
+          role="status"
+          data-in-bounds={iconDebug ? String(iconDebug.inBounds) : 'pending'}
+          aria-label={iconDebug ? `Icon debug inBounds ${iconDebug.inBounds}` : 'Icon debug waiting for game'}
+        >
+          {iconDebug
+            ? `Icon: (${Math.round(iconDebug.iconRect.x)},${Math.round(iconDebug.iconRect.y)}) ${Math.round(iconDebug.iconRect.w)}×${Math.round(iconDebug.iconRect.h)} | Visible: (${Math.round(iconDebug.visibleRect.x)},${Math.round(iconDebug.visibleRect.y)}) ${Math.round(iconDebug.visibleRect.width)}×${Math.round(iconDebug.visibleRect.height)} | inBounds: ${String(iconDebug.inBounds)}`
+            : 'icon-debug: waiting'}
+        </span>
+      </div>
+      <div className={`device-simulator-body ${showConstantsEditor ? 'has-editor' : ''}`}>
+        <div className="device-simulator-frame">
+          <div
+            className="device-simulator-iframe-wrapper"
+            style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+          >
+            <iframe
+              ref={iframeRef}
+              src={simUrl}
+              title="Device simulator"
+              style={{ width: width, height: height }}
+              className="device-simulator-iframe"
+              allow="autoplay"
+            />
+          </div>
         </div>
+        {showConstantsEditor && (
+          <div className="device-simulator-editor">
+            <ConstantsEditor />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { BallColor, GAME_CONFIG, LIQUID_BALL_DISPLAY_WIDTH_RATIO, LIQUID_BALL_SIZE_SCALE, BALL_EXPRESSION_OFFSET_X, BALL_EXPRESSION_OFFSET_Y, BALL_EXPRESSION_SCALE_RATIO } from '../constants/GameConstants';
+import { BallColor, Config } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
 
 export class Ball extends Phaser.GameObjects.Container {
@@ -22,7 +22,7 @@ export class Ball extends Phaser.GameObjects.Container {
     private containerHoverTween: Phaser.Tweens.Tween | null = null;
     public color: BallColor;
     public isCandle: boolean = false;
-    private baseSize: number = GAME_CONFIG.BALL_SIZE; // 基准尺寸
+    private baseSize: number = Config.GAME_CONFIG.BALL_SIZE; // 基准尺寸
 
     constructor(scene: Scene, x: number, y: number, color: BallColor) {
         super(scene, x, y);
@@ -89,14 +89,14 @@ export class Ball extends Phaser.GameObjects.Container {
      */
     private setLiquidScaleFromTubeWidth(tubeDisplayWidth: number) {
         const configW = this.scene.scale.height > this.scene.scale.width
-            ? GAME_CONFIG.PORTRAIT.TUBE_WIDTH
-            : GAME_CONFIG.LANDSCAPE.TUBE_WIDTH;
+            ? Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH
+            : Config.GAME_CONFIG.LANDSCAPE.TUBE_WIDTH;
         const w = (tubeDisplayWidth != null && tubeDisplayWidth > 0)
             ? Math.max(tubeDisplayWidth, configW)
             : configW;
 
         const frameW = this.liquidSprite.width || 129;
-        const targetW = w * LIQUID_BALL_DISPLAY_WIDTH_RATIO * LIQUID_BALL_SIZE_SCALE;
+        const targetW = w * Config.LIQUID_BALL_DISPLAY_WIDTH_RATIO * Config.LIQUID_BALL_SIZE_SCALE;
         const ballScale = Math.max(0.01, this.scaleX);
         const scale = (targetW / frameW) / ballScale;
         this.liquidSprite.setScale(scale);
@@ -113,7 +113,7 @@ export class Ball extends Phaser.GameObjects.Container {
     private showBallExpression(tubeDisplayWidth?: number): void {
         if (!this.scene.textures.exists('圆球表情_00000')) return;
         if (!this.ballExpressionSprite) {
-            this.ballExpressionSprite = this.scene.add.sprite(BALL_EXPRESSION_OFFSET_X, BALL_EXPRESSION_OFFSET_Y, '圆球表情_00000');
+            this.ballExpressionSprite = this.scene.add.sprite(Config.BALL_EXPRESSION_OFFSET_X, Config.BALL_EXPRESSION_OFFSET_Y, '圆球表情_00000');
             this.ballExpressionSprite.setOrigin(0.5, 0.5);
             this.add(this.ballExpressionSprite);
             if (this.scene.anims.exists('ball_expression')) {
@@ -140,15 +140,15 @@ export class Ball extends Phaser.GameObjects.Container {
     private updateBallExpressionScale(tubeDisplayWidth?: number): void {
         if (!this.ballExpressionSprite || !this.ballExpressionSprite.visible) return;
         const configW = this.scene.scale.height > this.scene.scale.width
-            ? GAME_CONFIG.PORTRAIT.TUBE_WIDTH
-            : GAME_CONFIG.LANDSCAPE.TUBE_WIDTH;
+            ? Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH
+            : Config.GAME_CONFIG.LANDSCAPE.TUBE_WIDTH;
         const w = (tubeDisplayWidth != null && tubeDisplayWidth > 0)
             ? Math.max(tubeDisplayWidth, configW)
             : configW;
-        const targetW = w * LIQUID_BALL_DISPLAY_WIDTH_RATIO * LIQUID_BALL_SIZE_SCALE * BALL_EXPRESSION_SCALE_RATIO;
+        const targetW = w * Config.LIQUID_BALL_DISPLAY_WIDTH_RATIO * Config.LIQUID_BALL_SIZE_SCALE * Config.BALL_EXPRESSION_SCALE_RATIO;
         const ballScale = Math.max(0.01, this.scaleX);
         const frameW = this.ballExpressionSprite.width || 1;
-        const scale = frameW > 0 ? (targetW / frameW) / ballScale : BALL_EXPRESSION_SCALE_RATIO / ballScale;
+        const scale = frameW > 0 ? (targetW / frameW) / ballScale : Config.BALL_EXPRESSION_SCALE_RATIO / ballScale;
         this.ballExpressionSprite.setScale(scale);
     }
 
@@ -254,7 +254,7 @@ export class Ball extends Phaser.GameObjects.Container {
             this.syncGlowSprites('liquid_move', true);
             this.setupGlowSync(); // 设置实时同步
 
-            const tubeW = options?.tubeDisplayWidth ?? (this.scene.scale.height > this.scene.scale.width ? GAME_CONFIG.PORTRAIT.TUBE_WIDTH : GAME_CONFIG.LANDSCAPE.TUBE_WIDTH);
+            const tubeW = options?.tubeDisplayWidth ?? (this.scene.scale.height > this.scene.scale.width ? Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH : Config.GAME_CONFIG.LANDSCAPE.TUBE_WIDTH);
             this.setLiquidScaleFromTubeWidth(tubeW);
         } else if (state === 'rising') {
             this.ballImage.setVisible(false);
@@ -272,7 +272,7 @@ export class Ball extends Phaser.GameObjects.Container {
             });
             this.liquidSprite.setTintFill(liquidColor);
 
-            const tubeW = options?.tubeDisplayWidth ?? (this.scene.scale.height > this.scene.scale.width ? GAME_CONFIG.PORTRAIT.TUBE_WIDTH : GAME_CONFIG.LANDSCAPE.TUBE_WIDTH);
+            const tubeW = options?.tubeDisplayWidth ?? (this.scene.scale.height > this.scene.scale.width ? Config.GAME_CONFIG.PORTRAIT.TUBE_WIDTH : Config.GAME_CONFIG.LANDSCAPE.TUBE_WIDTH);
             this.setLiquidScaleFromTubeWidth(tubeW);
             this.showBallExpression(tubeW);
             this.scene.time.delayedCall(0, () => {

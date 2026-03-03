@@ -21,10 +21,10 @@
     "typescript"
   ],
   "scripts": {
-    "dev": "vite --config vite/config.dev.mjs",
+    "dev": "concurrently -n dev,tools -c blue,cyan \"vite --config vite/config.dev.mjs\" \"npm run dev-tools\"",
     "build": "vite build --config vite/config.prod.mjs && node scripts/remove-script.mjs",
     "dev-tools": "node --watch scripts/constants-editor-server.mjs",
-    "dev:all": "concurrently -n dev,tools -c blue,cyan \"npm run dev\" \"npm run dev-tools\""
+    "dev:all": "npm run dev"
   },
   "dependencies": {
     "express": "^4.21.0",

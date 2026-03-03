@@ -151,6 +151,16 @@
   background: #00b8d9;
 }
 
+.device-simulator-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.device-simulator-body.has-editor {
+  flex-direction: row;
+}
+
 .device-simulator-frame {
   flex: 1;
   display: flex;
@@ -158,6 +168,56 @@
   justify-content: center;
   padding: 20px;
   overflow: auto;
+  min-width: 0;
+}
+
+.device-simulator-body.has-editor .device-simulator-frame {
+  flex: 0 1 55%;
+}
+
+.device-simulator-editor {
+  flex: 0 0 45%;
+  min-width: 320px;
+  border-left: 1px solid #0f3460;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-constants-btn {
+  padding: 6px 12px;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  background: #0f3460;
+  color: #00d9ff;
+  font-size: 13px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.sim-constants-btn:hover {
+  background: #16213e;
+  border-color: #00d9ff;
+}
+
+.sim-constants-btn.is-active {
+  background: #00d9ff;
+  color: #1a1a2e;
+  border-color: #00d9ff;
+}
+
+.sim-icon-debug {
+  font-size: 11px;
+  color: #888;
+  margin-left: 8px;
+}
+
+.sim-icon-debug[data-in-bounds="true"] {
+  color: #4ade80;
+}
+
+.sim-icon-debug[data-in-bounds="false"] {
+  color: #f87171;
 }
 
 .device-simulator-iframe-wrapper {

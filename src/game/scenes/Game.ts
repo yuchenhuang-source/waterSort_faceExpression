@@ -1,7 +1,7 @@
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
 import { Board } from '../components/Board';
-import { UI_CONFIG } from '../constants/GameConstants';
+import { Config } from '../constants/GameConstants';
 import { isPerfEnabled, initPerf, recordBoardUpdate, tickPerf } from '../../utils/perfLogger';
 import download from './constants/download';
 import { getOutputConfigAsync } from '../../utils/outputConfigLoader';
@@ -281,13 +281,16 @@ export class Game extends Scene
         const width = isPortrait ? 1080 : 2160;
         const height = isPortrait ? 2160 : 1080;
 
-        // 左上角 icon（x/y 为 0-1 相对屏幕比例，适配任意分辨率）
-        const iconCfg = isPortrait ? UI_CONFIG.ICON.PORTRAIT : UI_CONFIG.ICON.LANDSCAPE;
-        const iconW = (iconCfg as { displayWidth?: number }).displayWidth ?? 128;
-        const iconH = (iconCfg as { displayHeight?: number }).displayHeight ?? 128;
-        const iconX = (iconCfg as { x?: number }).x ?? 0;
-        const iconY = (iconCfg as { y?: number }).y ?? 0;
-        this.iconBtn = this.add.image(width * iconX, height * iconY, 'icon');
+        // 左上角 icon（x/y 为 0-1 相对屏幕比例，适配任意分辨率；若超出可见区域则自动缩小）
+        const iconCfg = isPortrait ? Config.UI_CONFIG.ICON.PORTRAIT : Config.UI_CONFIG.ICON.LANDSCAPE;
+        const baseW = (iconCfg as { displayWidth?: number }).displayWidth ?? 128;
+        const baseH = (iconCfg as { displayHeight?: number }).displayHeight ?? 128;
+        const iconNormX = (iconCfg as { x?: number }).x ?? 0;
+        const iconNormY = (iconCfg as { y?: number }).y ?? 0;
+        const iconX = width * iconNormX;
+        const iconY = height * iconNormY;
+        const { x: finalX, y: finalY, w: iconW, h: iconH } = this.getIconDisplaySize(width, height, iconX, iconY, baseW, baseH);
+        this.iconBtn = this.add.image(finalX, finalY, 'icon');
         this.iconBtn.setDisplaySize(iconW, iconH);
         this.iconBtn.setOrigin(0, 0);
         this.iconBtn.setInteractive();
@@ -344,7 +347,7 @@ export class Game extends Scene
     }
 
     private getDownloadBtnConfig(isPortrait: boolean): { x: number; y: number; scale: number } {
-        const cfg = UI_CONFIG.DOWNLOAD_BTN as {
+        const cfg = Config.UI_CONFIG.DOWNLOAD_BTN as {
             PORTRAIT?: { x?: number; y?: number; scale?: number };
             LANDSCAPE?: { x?: number; y?: number; scale?: number };
         };
@@ -364,6 +367,78 @@ export class Game extends Scene
         };
     }
 
+    /** 获取安全区域 inset（刘海等），单位 px */
+    private getSafeAreaInsets(): { top: number; left: number; right: number; bottom: number } {
+        try {
+            const div = document.createElement('div');
+            div.style.cssText = 'position:fixed;inset:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);pointer-events:none;visibility:hidden;';
+            document.body.appendChild(div);
+            const s = getComputedStyle(div);
+            const top = parseFloat(s.paddingTop) || 0;
+            const right = parseFloat(s.paddingRight) || 0;
+            const bottom = parseFloat(s.paddingBottom) || 0;
+            const left = parseFloat(s.paddingLeft) || 0;
+            document.body.removeChild(div);
+            return { top, right, bottom, left };
+        } catch {
+            return { top: 0, left: 0, right: 0, bottom: 0 };
+        }
+    }
+
+    /** 获取 object-fit:cover 下可见的游戏区域（游戏坐标，含安全区域） */
+    private getVisibleGameRect(gameWidth: number, gameHeight: number): { x: number; y: number; width: number; height: number } {
+        const container = this.scale.canvas?.parentElement;
+        if (!container) return { x: 0, y: 0, width: gameWidth, height: gameHeight };
+        const cw = container.clientWidth;
+        const ch = container.clientHeight;
+        const safe = this.getSafeAreaInsets();
+        const safeW = cw - safe.left - safe.right;
+        const safeH = ch - safe.top - safe.bottom;
+        if (safeW <= 0 || safeH <= 0) return { x: 0, y: 0, width: gameWidth, height: gameHeight };
+        const scale = Math.max(cw / gameWidth, ch / gameHeight);
+        const scaledW = gameWidth * scale;
+        const scaledH = gameHeight * scale;
+        const offsetX = (cw - scaledW) / 2;
+        const offsetY = (ch - scaledH) / 2;
+        return {
+            x: (safe.left - offsetX) / scale,
+            y: (safe.top - offsetY) / scale,
+            width: safeW / scale,
+            height: safeH / scale
+        };
+    }
+
+    /** 计算 icon 在可见区域内能用的 displaySize 与位置（若超出则缩小并可能微调位置） */
+    private getIconDisplaySize(
+        gameWidth: number,
+        gameHeight: number,
+        iconX: number,
+        iconY: number,
+        baseW: number,
+        baseH: number
+    ): { x: number; y: number; w: number; h: number } {
+        const visible = this.getVisibleGameRect(gameWidth, gameHeight);
+        const visRight = visible.x + visible.width;
+        const visBottom = visible.y + visible.height;
+        let x = iconX;
+        let y = iconY;
+        let w = baseW;
+        let h = baseH;
+        if (x < visible.x) x = visible.x;
+        if (y < visible.y) y = visible.y;
+        if (x + w > visRight) w = Math.max(1, visRight - x);
+        if (y + h > visBottom) h = Math.max(1, visBottom - y);
+        let scale = Math.min(w / baseW, h / baseH, 1);
+        scale = Math.max(0.2, scale);
+        w = baseW * scale;
+        h = baseH * scale;
+        if (x + w > visRight) x = visRight - w;
+        if (y + h > visBottom) y = visBottom - h;
+        if (x < visible.x) x = visible.x;
+        if (y < visible.y) y = visible.y;
+        return { x, y, w, h };
+    }
+
     private updateGameSize() {
         const isPortrait = window.innerHeight > window.innerWidth;
         const width = isPortrait ? 1080 : 2160;
@@ -376,15 +451,30 @@ export class Game extends Scene
             this.board.refreshLayout();
         }
 
-        const icon = isPortrait ? UI_CONFIG.ICON.PORTRAIT : UI_CONFIG.ICON.LANDSCAPE;
+        const icon = isPortrait ? Config.UI_CONFIG.ICON.PORTRAIT : Config.UI_CONFIG.ICON.LANDSCAPE;
         if (this.iconBtn) {
-            const ix = (icon as { x?: number }).x ?? 0;
-            const iy = (icon as { y?: number }).y ?? 0;
-            this.iconBtn.setPosition(width * ix, height * iy);
-            const iconW = (icon as { displayWidth?: number }).displayWidth;
-            const iconH = (icon as { displayHeight?: number }).displayHeight;
-            if (iconW != null && iconH != null) {
-                this.iconBtn.setDisplaySize(iconW, iconH);
+            const baseW = (icon as { displayWidth?: number }).displayWidth ?? 128;
+            const baseH = (icon as { displayHeight?: number }).displayHeight ?? 128;
+            const iconNormX = (icon as { x?: number }).x ?? 0;
+            const iconNormY = (icon as { y?: number }).y ?? 0;
+            const iconX = width * iconNormX;
+            const iconY = height * iconNormY;
+            const visible = this.getVisibleGameRect(width, height);
+            const { x: finalX, y: finalY, w: iconW, h: iconH } = this.getIconDisplaySize(width, height, iconX, iconY, baseW, baseH);
+            this.iconBtn.setPosition(finalX, finalY);
+            this.iconBtn.setDisplaySize(iconW, iconH);
+            const inBounds =
+                finalX >= visible.x &&
+                finalY >= visible.y &&
+                finalX + iconW <= visible.x + visible.width &&
+                finalY + iconH <= visible.y + visible.height;
+            const iconRect = { x: finalX, y: finalY, w: iconW, h: iconH };
+            if (import.meta.env.DEV) {
+                console.log('[icon-debug]', { visibleRect: visible, iconRect, inBounds });
+            }
+            (window as unknown as { __iconDebug?: unknown }).__iconDebug = { visibleRect: visible, iconRect, inBounds };
+            if (typeof window !== 'undefined' && window !== window.top) {
+                window.parent.postMessage({ type: 'icon-debug', visibleRect: visible, iconRect, inBounds }, '*');
             }
         }
 
@@ -443,7 +533,7 @@ export class Game extends Scene
         };
 
         // 添加icon图片（缩小到1/2）
-        const iconOffsetY = UI_CONFIG.POPUP.ICON_OFFSET_Y;
+        const iconOffsetY = Config.UI_CONFIG.POPUP.ICON_OFFSET_Y;
         const icon = this.add.image(0, iconOffsetY, 'icon');
         icon.setScale(0.5);
         icon.setInteractive();
@@ -451,7 +541,7 @@ export class Game extends Scene
         this.victoryPopup.add(icon);
 
         // 添加download按钮容器（调整位置适应缩小后的icon）
-        const downloadBtnY = (icon.height * 0.5) / 2 + UI_CONFIG.POPUP.DOWNLOAD_BTN_OFFSET_Y;
+        const downloadBtnY = (icon.height * 0.5) / 2 + Config.UI_CONFIG.POPUP.DOWNLOAD_BTN_OFFSET_Y;
         const downloadBtnContainer = this.add.container(0, downloadBtnY);
         
         // 目标尺寸（原 download.png 的尺寸）
@@ -550,7 +640,7 @@ export class Game extends Scene
         };
 
         // 添加icon图片（缩小到1/2）
-        const iconOffsetY = UI_CONFIG.POPUP.ICON_OFFSET_Y;
+        const iconOffsetY = Config.UI_CONFIG.POPUP.ICON_OFFSET_Y;
         const icon = this.add.image(0, iconOffsetY, 'icon');
         icon.setScale(0.5);
         icon.setInteractive();
@@ -558,7 +648,7 @@ export class Game extends Scene
         this.victoryPopup.add(icon);
 
         // 添加download按钮容器（调整位置适应缩小后的icon）
-        const downloadBtnY = (icon.height * 0.5) / 2 + UI_CONFIG.POPUP.DOWNLOAD_BTN_OFFSET_Y;
+        const downloadBtnY = (icon.height * 0.5) / 2 + Config.UI_CONFIG.POPUP.DOWNLOAD_BTN_OFFSET_Y;
         const downloadBtnContainer2 = this.add.container(0, downloadBtnY);
         
         // 目标尺寸（原 download.png 的尺寸）

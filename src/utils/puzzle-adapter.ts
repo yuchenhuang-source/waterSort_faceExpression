@@ -4,7 +4,7 @@
  */
 
 import { createPuzzle, GeneratorConfig } from './sort-puzzle-generator';
-import { BallColor, RESTRICTED_PALETTE, GAME_CONFIG } from '../game/constants/GameConstants';
+import { BallColor, RESTRICTED_PALETTE, Config } from '../game/constants/GameConstants';
 
 /**
  * 适配器配置接口
@@ -59,11 +59,11 @@ export function generatePuzzleWithAdapter(config: PuzzleAdapterConfig): PuzzleAd
     
     // 1. 计算派生参数（仅使用 4 色调色板）
     const colorCount = Math.min(4, Math.max(3, difficulty + 2)); // 3-4 种颜色
-    const totalTubes = GAME_CONFIG.TUBE_COUNT;  // 14 (总管数固定)
+    const totalTubes = Config.GAME_CONFIG.TUBE_COUNT;  // 14 (总管数固定)
     // 空管数量限制在合理范围 (1-6)，确保至少有8个满管
     const actualEmptyTubes = Math.min(6, Math.max(1, emptyTubeCount));
     const filledTubes = totalTubes - actualEmptyTubes;  // 满管数 = 14 - 空管数
-    const tubeSize = GAME_CONFIG.TUBE_CAPACITY;  // 8
+    const tubeSize = Config.GAME_CONFIG.TUBE_CAPACITY;  // 8
     
     // 2. 计算每种颜色的试管分配
     // 确保总管数为 filledTubes，且每种颜色至少有1管
@@ -187,11 +187,11 @@ function selectColors(colorCount: number, seed: number): BallColor[] {
  */
 export function validatePuzzle(tubes: BallColor[][], expectedEmptyTubes?: number): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
-    const capacity = GAME_CONFIG.TUBE_CAPACITY;
+    const capacity = Config.GAME_CONFIG.TUBE_CAPACITY;
     
     // 检查试管总数
-    if (tubes.length !== GAME_CONFIG.TUBE_COUNT) {
-        errors.push(`试管数量错误: ${tubes.length} != ${GAME_CONFIG.TUBE_COUNT}`);
+    if (tubes.length !== Config.GAME_CONFIG.TUBE_COUNT) {
+        errors.push(`试管数量错误: ${tubes.length} != ${Config.GAME_CONFIG.TUBE_COUNT}`);
     }
     
     // 统计每种颜色的球数

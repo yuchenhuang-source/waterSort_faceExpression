@@ -61,14 +61,14 @@
   "UI_CONFIG": {
     "ICON": {
       "PORTRAIT": {
-        "x": 0.05,
-        "y": 0.1,
+        "x": 0.1,
+        "y": 0.01,
         "displayWidth": 150,
         "displayHeight": 150
       },
       "LANDSCAPE": {
         "x": 0.1,
-        "y": 0.05,
+        "y": 0.02,
         "displayWidth": 150,
         "displayHeight": 150
       }
