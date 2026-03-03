@@ -15,6 +15,16 @@ This template has been updated for:
 
 ![screenshot](screenshot.png)
 
+## 文档
+
+项目文档位于 [docs/](./docs/) 目录，详见 [docs/README.md](./docs/README.md)。
+
+- [复现问题调试计划](./docs/复现问题调试计划.md)
+- [配置变量与 Dev 热更新](./docs/配置变量与Dev热更新.md)
+- [Liquid 设计](./docs/LiquidDesign.md)
+- [性能测试指南](./docs/性能测试指南.md)
+- 更多文档见 [docs/](./docs/)
+
 ## Requirements
 
 [Node.js](https://nodejs.org) is required to install dependencies and run scripts via `npm`.
