@@ -45,6 +45,7 @@ export function setPersistentSelectedLevel(difficulty: number) {
   persistentSelectedDifficulty = difficulty;
   userHasSelectedFromUI = true;
   EventBus.emit('level-selected', difficulty);
+  EventBus.emit('game-visible'); // 用户选关后游戏可见，用于引导手指计时起点
 }
 
 /** 是否已有可用关卡（来自 URL 或用户已点击选关） */

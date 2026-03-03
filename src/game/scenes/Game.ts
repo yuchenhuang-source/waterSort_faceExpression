@@ -102,7 +102,14 @@ export class Game extends Scene
         this.initDebugOverlay();
         if (isPerfEnabled()) initPerf();
 
-        console.log('[TIMING] 关卡加载完成', { t: performance.now(), ts: new Date().toISOString() });
+        // 难度 1/5/9 对应关卡 1/2/3，便于 AI 轮询 console 检测
+        const levelNum = this.currentDifficulty === 1 ? 1 : this.currentDifficulty === 5 ? 2 : 3;
+        console.log('[LEVEL_ENTER] 成功进入第' + levelNum + '关', {
+            difficulty: this.currentDifficulty,
+            levelNum,
+            t: performance.now(),
+            ts: new Date().toISOString()
+        });
         EventBus.emit('current-scene-ready', this);
     }
 
@@ -124,6 +131,8 @@ export class Game extends Scene
 
     private async onLevelSelected(difficulty: number) {
         if (difficulty === this.currentDifficulty) return;
+        const levelNum = difficulty === 1 ? 1 : difficulty === 5 ? 2 : 3;
+        console.log('[LEVEL_ENTER] 开始切换关卡', { difficulty, levelNum, t: performance.now() });
         const emptyTubeCount = this.currentEmptyTubeCount;
         const cached = getCachedPuzzle(difficulty, emptyTubeCount);
         if (cached) {
@@ -210,16 +219,6 @@ export class Game extends Scene
         if (isPerfEnabled()) {
             recordBoardUpdate(boardMs);
             tickPerf(this);
-        }
-
-        // 每帧log按钮位置
-        if (this.centerBtnContainer) {
-            console.log('Center Button Position:', {
-                x: this.centerBtnContainer.x,
-                y: this.centerBtnContainer.y,
-                scale: this.centerBtnContainer.scale,
-                visible: this.centerBtnContainer.visible
-            });
         }
     }
     

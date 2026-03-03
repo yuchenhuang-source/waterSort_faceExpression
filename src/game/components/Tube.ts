@@ -827,6 +827,7 @@ export class Tube extends Phaser.GameObjects.Container {
      * 渲染优先级：上层液面水花 > 下层液面水花（按 Y 管理）
      */
     public playSplashAtSurface(surfaceY: number, color: BallColor): void {
+        if (!this.scene.textures.exists('splash_00000')) return;
         const splashSprite = this.scene.add.sprite(0, surfaceY, 'splash_00000');
         splashSprite.setData('isLiquidSplash', true);
         splashSprite.setTintFill(getLiquidColors()[color]);
@@ -835,8 +836,9 @@ export class Tube extends Phaser.GameObjects.Container {
         splashSprite.setOrigin(0.5, 1);
         const splashY = surfaceY + splashSprite.displayHeight * Config.SPLASH_VERTICAL_OFFSET_RATIO;
         splashSprite.setPosition(0, splashY);
+        // 加入 Tube 并置于管身前，确保水花可见（管身可能遮挡液体层内的内容）
         this.add(splashSprite);
-        this.moveTo(splashSprite, this.getSplashInsertIndex(splashY));
+        this.bringToTop(splashSprite);
         splashSprite.play('liquid_splash');
         splashSprite.on('animationcomplete', () => {
             splashSprite.destroy();
@@ -909,6 +911,8 @@ export class Tube extends Phaser.GameObjects.Container {
         this.requestDrawLiquid();
 
         // 仅在新液体表面保留水花，下方液体不播水花（原：交界处播 splash，视觉上像上下都有）
+        // 液体落下时在新加入的液面位置播放 splash 动画
+        this.playSplashAtSurface(startSurfaceY, color);
 
         // 非最后一个落入的液体用 waterRiseLinear，最后一个（最上面）用 waterRise
         const configKey = isLast ? 'waterRise' : 'waterRiseLinear';

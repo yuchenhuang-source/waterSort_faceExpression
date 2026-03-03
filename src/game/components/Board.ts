@@ -33,6 +33,8 @@ export class Board extends Phaser.GameObjects.Container {
     private isGameActive: boolean = false;
     private idleTimer: number = 0;
     private static readonly IDLE_HINT_DELAY = 5000; // 5秒无操作后显示引导
+    private static readonly INITIAL_HINT_DELAY = 1500; // 游戏开始后约1.5秒显示初始引导
+    private initialHintTimer: Phaser.Time.TimerEvent | null = null; // 初始引导定时器，玩家操作时可取消
 
     // 引导系统状态
     private hintSourceTube: Tube | null = null;  // 引导的源试管
@@ -79,6 +81,23 @@ export class Board extends Phaser.GameObjects.Container {
         
         scene.add.existing(this);
         this.isGameActive = true;
+    }
+
+    /** 场景重启时移除监听，避免已销毁的 Board 在 resize/update 时被调用导致 TypeError */
+    destroy(fromScene?: boolean): void {
+        if (this.initialHintTimer) {
+            this.initialHintTimer.remove();
+            this.initialHintTimer = null;
+        }
+        EventBus.off('game-visible', this.scheduleInitialHint, this);
+        const scene = this.scene;
+        if (scene) {
+            scene.scale.off('resize', this.handleResize, this);
+            scene.events.off('update', this.update, this);
+        }
+        EventBus.off('tube-complete-internal', this.onTubeCompleteInternal, this);
+        this.isGameActive = false;
+        super.destroy(fromScene);
     }
     
     /**
@@ -1072,8 +1091,16 @@ export class Board extends Phaser.GameObjects.Container {
         // 初始缩放：横屏时缩小到70%
         this.hand.setScale(this.getHandBaseScale());
 
-        // 游戏开始时延迟显示初始引导（从500ms延后到1500ms，避免与初始化争抢主线程）
-        this.scene.time.delayedCall(1500, () => {
+        // 游戏可见时才开始计时：1.5秒内玩家有操作则取消初始引导
+        EventBus.on('game-visible', this.scheduleInitialHint, this);
+    }
+
+    /** 游戏可见时调度初始引导（由 game-visible 事件触发） */
+    private scheduleInitialHint() {
+        EventBus.off('game-visible', this.scheduleInitialHint, this);
+        if (!this.hand || !this.isGameActive) return;
+        this.initialHintTimer = this.scene.time.delayedCall(Board.INITIAL_HINT_DELAY, () => {
+            this.initialHintTimer = null;
             this.showHint();
         });
     }
@@ -1141,6 +1168,12 @@ export class Board extends Phaser.GameObjects.Container {
     private handleTubeClick(tube: Tube) {
         if (!this.isGameActive) return;
         
+        // 1.5秒内有操作则取消初始引导
+        if (this.initialHintTimer) {
+            this.initialHintTimer.remove();
+            this.initialHintTimer = null;
+        }
+        
         // 重置空闲计时器
         this.idleTimer = 0;
         
@@ -1178,17 +1211,13 @@ export class Board extends Phaser.GameObjects.Container {
     private handleHintOnClick(tube: Tube) {
         if (this.hintStep === 'source') {
             if (tube === this.hintSourceTube) {
-                // 用户按引导选中源试管，移动手指到目标试管
                 this.moveHandToTarget();
             } else {
-                // 用户选中其他试管，淡出引导
                 this.fadeOutHand();
             }
         } else if (this.hintStep === 'target') {
-            // 目标步骤时，任意点击都淡出
             this.fadeOutHand();
         } else {
-            // 无引导状态时，隐藏手指（如果可见）
             if (this.hand && this.hand.visible) {
                 this.fadeOutHand();
             }
@@ -1554,7 +1583,7 @@ export class Board extends Phaser.GameObjects.Container {
     }
 
     public update(time: number, delta: number) {
-        if (!this.isGameActive) return;
+        if (!this.scene || !this.isGameActive) return;
 
         this.idleTimer += delta;
         
@@ -1565,12 +1594,12 @@ export class Board extends Phaser.GameObjects.Container {
     }
 
     /**
-     * 显示引导手势（第一步：指向源试管）
+     * 显示引导手势。若用户已选中试管则指向其最佳目标，否则指向最优移动的源试管
      * 使用智能评分系统找到最优移动
      * 优化：将 findBestMove 延后到下一帧执行，避免阻塞当前帧
      */
     private showHint() {
-        if (!this.hand) return;
+        if (!this.scene || !this.hand) return;
         
         // 重置引导状态
         this.hintSourceTube = null;
@@ -1580,19 +1609,36 @@ export class Board extends Phaser.GameObjects.Container {
         // 延后到空闲时执行 findBestMove，避免阻塞主线程
         const runFindBest = () => {
             if (!this.hand || !this.isGameActive) return;
-            const bestMove = this.findBestMove();
-            if (bestMove) {
-                this.hintSourceTube = bestMove.source;
-                this.hintTargetTube = bestMove.target;
-                this.hintStep = 'source';
-                const globalPos = this.getWorldTransformMatrix().transformPoint(
-                    this.hintSourceTube.x,
-                    this.hintSourceTube.y - this.hintSourceTube.height / 4
-                );
-                this.hand.setPosition(globalPos.x, globalPos.y);
-                this.handBaseY = globalPos.y;
-                this.fadeInHand();
+            // 用户已选中试管：根据该操作提示目标
+            if (this.selectedTube && !this.selectedTube.isEmpty() && !this.selectedTube.isCompleted) {
+                const target = this.findBestTargetForSource(this.selectedTube);
+                if (target) {
+                    this.hintSourceTube = this.selectedTube;
+                    this.hintTargetTube = target;
+                    this.hintStep = 'target';
+                    const globalPos = this.getWorldTransformMatrix().transformPoint(
+                        target.x,
+                        target.y - target.height / 4
+                    );
+                    this.hand.setPosition(globalPos.x, globalPos.y);
+                    this.handBaseY = globalPos.y;
+                    this.fadeInHand();
+                    return;
+                }
             }
+            // 未选中：找最优移动，指向源试管
+            const bestMove = this.findBestMove();
+            if (!bestMove) return;
+            this.hintSourceTube = bestMove.source;
+            this.hintTargetTube = bestMove.target;
+            this.hintStep = 'source';
+            const globalPos = this.getWorldTransformMatrix().transformPoint(
+                this.hintSourceTube.x,
+                this.hintSourceTube.y - this.hintSourceTube.height / 4
+            );
+            this.hand.setPosition(globalPos.x, globalPos.y);
+            this.handBaseY = globalPos.y;
+            this.fadeInHand();
         };
         if (typeof requestIdleCallback !== 'undefined') {
             requestIdleCallback(() => runFindBest(), { timeout: 50 });
@@ -1661,6 +1707,31 @@ export class Board extends Phaser.GameObjects.Container {
         
         moves.sort((a, b) => b.score - a.score);
         return moves.length > 0 ? moves[0] : null;
+    }
+
+    /**
+     * 为指定源试管找到最佳目标试管（复用 findBestMove 的评分逻辑）
+     */
+    private findBestTargetForSource(source: Tube): Tube | null {
+        let bestTarget: Tube | null = null;
+        let bestScore = -Infinity;
+        const topBalls = source.getTopSameColorBalls();
+        if (topBalls.length === 0) return null;
+        const topColor = topBalls[0].color;
+        for (const target of this.tubes) {
+            if (source === target || target.isFull() || target.isCompleted) continue;
+            const targetColor = target.getTopColor();
+            if (!target.isEmpty() && targetColor !== topColor) continue;
+            const availableSpace = Config.GAME_CONFIG.TUBE_CAPACITY - target.balls.length;
+            const ballCount = Math.min(topBalls.length, availableSpace);
+            if (ballCount === 0) continue;
+            const score = this.calculateMoveScore(source, target, ballCount, topColor);
+            if (score > bestScore) {
+                bestScore = score;
+                bestTarget = target;
+            }
+        }
+        return bestTarget;
     }
 
     /**
@@ -1881,6 +1952,7 @@ export class Board extends Phaser.GameObjects.Container {
     }
 
     private handleResize(gameSize: Phaser.Structs.Size) {
+        if (!this.scene || !this.active) return;
         const isPortrait = gameSize.height > gameSize.width;
         const config = isPortrait ? Config.GAME_CONFIG.PORTRAIT : Config.GAME_CONFIG.LANDSCAPE;
         const cfg = config as Record<string, number>;

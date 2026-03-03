@@ -75,14 +75,14 @@
     },
     "DOWNLOAD_BTN": {
       "PORTRAIT": {
-        "x": 0,
+        "x": 0.4,
         "y": 0.7,
-        "scale": 1.8
+        "scale": 1.4
       },
       "LANDSCAPE": {
-        "x": 0,
-        "y": 0.76,
-        "scale": 1.6
+        "x": 0.5,
+        "y": 0.85,
+        "scale": 1.4
       }
     },
     "POPUP": {

@@ -33,7 +33,10 @@ function App() {
     useEffect(() => {
         const onGameReady = () => {
             gameReadyRef.current = true;
-            if (isLevelSelectionReady()) setLevelSelectVisible(false);
+            if (isLevelSelectionReady()) {
+                setLevelSelectVisible(false);
+                EventBus.emit('game-visible'); // 有初始关卡时游戏立即可见，用于引导手指计时起点
+            }
         };
         EventBus.on('current-scene-ready', onGameReady);
         return () => {
