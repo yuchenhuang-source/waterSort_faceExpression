@@ -28,7 +28,11 @@ function connect() {
         frameCount++;
         const frame = data.frame;
         const detections = data.detections || {};
-        console.log('[CV-UI] frame_processed frameLen=' + (frame?.length || 0) + ' hasFrame=' + !!frame + ' frameSize=' + JSON.stringify(detections.frameSize));
+        const tubes = detections.tubes || [];
+        const balls = detections.balls || [];
+        const tubeIds = tubes.map(t => t.id).join(',');
+        const ballIds = balls.map(b => b.id).join(',');
+        console.log('[CV-UI] frame_processed frameLen=' + (frame?.length || 0) + ' hasFrame=' + !!frame + ' frameSize=' + JSON.stringify(detections.frameSize) + ' detected tubes=' + tubeIds + ' balls=' + ballIds + ' count=' + tubes.length + ',' + balls.length);
         if (frame) {
           const src = frame.startsWith('data:') ? frame : 'data:image/jpeg;base64,' + frame;
           frameEl.onerror = () => console.error('[CV-UI] img onerror - frame failed to load');
@@ -40,8 +44,6 @@ function connect() {
             const ctx = overlayEl.getContext('2d');
             ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
             // Phase 3: draw detection boxes
-            const tubes = detections.tubes || [];
-            const balls = detections.balls || [];
             tubes.forEach(t => {
               ctx.strokeStyle = '#0f0';
               ctx.lineWidth = 2;
@@ -61,6 +63,10 @@ function connect() {
           };
         }
         statsEl.textContent = `Frames: ${frameCount}\nProcessing: ${detections.processingMs ?? '-'} ms`;
+        const summaryEl = document.getElementById('detection-summary');
+        if (summaryEl) {
+          summaryEl.textContent = `检测到: ${tubes.length} 个试管 [${tubeIds || '-'}], ${balls.length} 个球 [${ballIds || '-'}]`;
+        }
         detectionsEl.textContent = JSON.stringify(detections, null, 2);
       }
     } catch (e) {

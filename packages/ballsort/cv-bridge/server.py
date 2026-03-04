@@ -94,6 +94,9 @@ async def serve_http(reader, writer):
     method, path = parts[0], parts[1]
     if path == "/":
         path = "/index.html"
+    # Strip query string for file lookup (e.g. /app.js?v=2 -> /app.js)
+    if "?" in path:
+        path = path.split("?")[0]
 
     safe_path = path.lstrip("/").replace("..", "")
     filepath = (UI_DIR / safe_path).resolve()
@@ -109,7 +112,8 @@ async def serve_http(reader, writer):
             ".js": "application/javascript",
             ".css": "text/css",
         }.get(ext, "application/octet-stream")
-        writer.write(f"HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {len(content)}\r\n\r\n".encode())
+        cache = "no-cache" if ext in (".html", ".js") else "public, max-age=3600"
+        writer.write(f"HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nCache-Control: {cache}\r\nContent-Length: {len(content)}\r\n\r\n".encode())
         writer.write(content)
     else:
         writer.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")

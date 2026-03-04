@@ -25,11 +25,12 @@
         <section>
           <h2>Detections</h2>
           <p class="hint">Use <code>?cv=1&auto=1</code> for auto frames, or press <strong>S</strong> in the game for manual step.</p>
+          <div id="detection-summary" class="detection-summary" role="status" aria-live="polite">-</div>
           <pre id="detections">Waiting for frames...</pre>
         </section>
       </aside>
     </main>
   </div>
-  <script src="app.js"></script>
+  <script src="app.js?v=detection-summary"></script>
 </body>
 </html>

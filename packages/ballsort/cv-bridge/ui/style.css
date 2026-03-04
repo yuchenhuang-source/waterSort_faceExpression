@@ -107,6 +107,13 @@ section h2 {
   border-radius: 3px;
 }
 
+.detection-summary {
+  font-family: monospace;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  color: #0f0;
+}
+
 #detections {
   margin: 0;
   font-size: 0.75rem;
