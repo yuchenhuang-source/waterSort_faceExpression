@@ -111,7 +111,22 @@ export class Game extends Scene
         // CV mode: connect to CV server, enable step-on-S
         if (isCVModeEnabled()) {
             this.initCVMode();
+            // Phase 2: Sync initial CV debug visuals when loading with ?cv=1
+            const bridge = getCVBridge(this.game);
+            this.board.setCVDebugMode(bridge.isCVDebugMode());
         }
+
+        // Phase 2: Hotkey C toggles CV debug mode (ArUco vs normal visuals)
+        const cvToggleHandler = (e: KeyboardEvent) => {
+            if (e.key !== 'c' && e.key !== 'C') return;
+            const bridge = getCVBridge(this.game);
+            const next = !bridge.isCVDebugMode();
+            bridge.setCVDebugMode(next);
+            console.log('[CV-TEST] Hotkey C pressed, cvDebugMode toggled to', next);
+            this.board.setCVDebugMode(next); // Board also listens to cv-mode-changed; call explicitly for immediate sync
+        };
+        document.addEventListener('keydown', cvToggleHandler);
+        this.events.once('shutdown', () => document.removeEventListener('keydown', cvToggleHandler));
 
         // 难度 1/5/9 对应关卡 1/2/3，便于 AI 轮询 console 检测
         const levelNum = this.currentDifficulty === 1 ? 1 : this.currentDifficulty === 5 ? 2 : 3;

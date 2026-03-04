@@ -17,6 +17,8 @@ export class Ball extends Phaser.GameObjects.Container {
     private candleImage: Phaser.GameObjects.Image;
     private liquidSprite: Phaser.GameObjects.Sprite; // 液体动画精灵
     private ballExpressionSprite: Phaser.GameObjects.Sprite | null = null; // 选中升起时播放的圆球表情动画
+    /** Phase 2: CV debug 模式下的 ArUco 标记（按需创建） */
+    private arucoImage: Phaser.GameObjects.Image | null = null;
     private glowSprites: Phaser.GameObjects.Sprite[] = []; // 多层光晕精灵数组
     /** 选中悬浮时容器上下浮动的 tween（仅液体状态使用） */
     private containerHoverTween: Phaser.Tweens.Tween | null = null;
@@ -59,6 +61,36 @@ export class Ball extends Phaser.GameObjects.Container {
         this.normalizeSizes();
 
         scene.add.existing(this);
+    }
+
+    /** Phase 2: 设置 CV debug 模式（ArUco 替换球视觉） */
+    public setCVDebugMode(enabled: boolean, arucoId: number): void {
+        const key = `aruco_${arucoId}`;
+        if (enabled) {
+            if (!this.scene.textures.exists(key)) return;
+            if (!this.arucoImage) {
+                this.arucoImage = this.scene.add.image(0, 0, key);
+                this.arucoImage.setDisplaySize(this.baseSize, this.baseSize);
+                this.add(this.arucoImage);
+            } else {
+                this.arucoImage.setTexture(key);
+            }
+            this.arucoImage.setVisible(true);
+            this.ballImage.setVisible(false);
+            this.liquidSprite.setVisible(false);
+            this.candleImage.setVisible(false);
+            if (this.ballExpressionSprite) this.ballExpressionSprite.setVisible(false);
+            console.log('[CV-TEST] Ball setCVDebugMode', enabled, 'arucoId=', arucoId, 'arucoVisible=', this.arucoImage.visible);
+        } else {
+            if (this.arucoImage) this.arucoImage.setVisible(false);
+            this.ballImage.setVisible(true);
+            this.liquidSprite.setVisible(false);
+            this.candleImage.setVisible(false);
+            if (this.isCandle) {
+                this.ballImage.setVisible(false);
+                this.candleImage.setVisible(true);
+            }
+        }
     }
 
     /**

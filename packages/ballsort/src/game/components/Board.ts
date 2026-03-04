@@ -3,6 +3,7 @@ import { Tube } from './Tube';
 import { Ball } from './Ball';
 import { Config, BALL_COLORS, BallColor } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
+import { CV_MODE_CHANGED, getCVBridge } from '../cv-bridge/CVBridge';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
@@ -78,9 +79,28 @@ export class Board extends Phaser.GameObjects.Container {
         
         // 监听试管完成事件
         EventBus.on('tube-complete-internal', this.onTubeCompleteInternal, this);
+
+        // Phase 2: 监听 CV debug 模式切换
+        EventBus.on(CV_MODE_CHANGED, this.onCVModeChanged, this);
         
         scene.add.existing(this);
         this.isGameActive = true;
+    }
+
+    /** Phase 2: CV 模式切换时更新所有组件视觉 */
+    private onCVModeChanged = (enabled: boolean) => {
+        console.log('[CV-TEST] Board received cv-mode-changed', enabled);
+        this.setCVDebugMode(enabled);
+    };
+
+    /** Phase 2: 设置 CV debug 模式（ArUco 替换 sprite） */
+    public setCVDebugMode(enabled: boolean): void {
+        console.log('[CV-TEST] Board.setCVDebugMode', enabled, 'tubes=', this.tubes.length);
+        if (this.boardLiquidGraphics) this.boardLiquidGraphics.setVisible(!enabled);
+        if (this.hand) this.hand.setVisible(!enabled);
+        for (const tube of this.tubes) {
+            tube.setCVDebugMode(enabled);
+        }
     }
 
     /** 场景重启时移除监听，避免已销毁的 Board 在 resize/update 时被调用导致 TypeError */
@@ -90,6 +110,7 @@ export class Board extends Phaser.GameObjects.Container {
             this.initialHintTimer = null;
         }
         EventBus.off('game-visible', this.scheduleInitialHint, this);
+        EventBus.off(CV_MODE_CHANGED, this.onCVModeChanged, this);
         const scene = this.scene;
         if (scene) {
             scene.scale.off('resize', this.handleResize, this);
@@ -1470,6 +1491,10 @@ export class Board extends Phaser.GameObjects.Container {
                                                         target.checkSameColorHighlight();
                                                         source.checkSameColorHighlight();
                                                         this.checkWinCondition();
+                                                        // Phase 2: 球移动完成后刷新 ArUco ID（球在新试管中的 slot 已确定）
+                                                        if (isLastBall && getCVBridge(this.scene.game).isCVDebugMode()) {
+                                                            this.setCVDebugMode(true);
+                                                        }
                                                     };
                                                     this.scene.time.delayedCall(0, checkCompletionAndWin, [], this);
                                                 }, false, isLastBall);
