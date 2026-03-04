@@ -64,6 +64,12 @@ export class CVBridge {
         return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
     }
 
+    /**
+     * Capture the game canvas. This captures ONLY what Phaser renders - no editor UI,
+     * simulator frame, toolbar, or DOM overlays. When run in the simulator iframe
+     * (?simulator=1), the canvas is the game's render target; the device frame and
+     * constants editor are in the parent window and are not included.
+     */
     captureFrame(): string {
         const canvas = this.game.canvas;
         if (!canvas) return '';

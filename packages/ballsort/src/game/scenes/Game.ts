@@ -203,16 +203,31 @@ export class Game extends Scene
         this.cvStepText.setDepth(20001);
         this.cvStepText.setScrollFactor(0);
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoMode = urlParams.get('auto') === '1';
+
+        if (!autoMode) {
+            this.waitingForCV = true; // Game frozen until S is pressed
+        }
+
         bridge.connect().then(() => {
-            if (this.cvStepText) this.cvStepText.setText('CV: Press S to step');
-            const keyS = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-            keyS?.on('down', () => this.stepOneFrame());
+            if (autoMode) {
+                if (this.cvStepText) this.cvStepText.setText('CV: Auto stepping...');
+                this.startAutoStepLoop();
+            } else {
+                this.scene.pause(); // Fully freeze: no update events, no tweens
+                if (this.cvStepText) this.cvStepText.setText('CV: Paused - Press S to step');
+                const handler = (e: KeyboardEvent) => { if (e.key === 's' || e.key === 'S') this.stepOneFrame(); };
+                document.addEventListener('keydown', handler);
+                this.events.once('shutdown', () => document.removeEventListener('keydown', handler));
+            }
         }).catch((err) => {
             console.error('[CV] Failed to connect', err);
             if (this.cvStepText) this.cvStepText.setText('CV: Connection failed');
         });
 
         this.events.once('shutdown', () => {
+            this.cvAutoStepRunning = false;
             destroyCVBridge();
             if (this.cvStepText) {
                 this.cvStepText.destroy();
@@ -221,25 +236,45 @@ export class Game extends Scene
         });
     }
 
+    private cvAutoStepRunning = false;
+
+    private startAutoStepLoop() {
+        this.cvAutoStepRunning = true;
+        const loop = async () => {
+            while (this.cvAutoStepRunning && this.scene?.isActive()) {
+                await this.stepOneFrame();
+                await new Promise<void>((r) => setTimeout(r, 100));
+            }
+        };
+        loop();
+    }
+
     private async stepOneFrame() {
         const bridge = getCVBridge(this.game);
         if (!bridge.isConnected()) return;
-        if (this.waitingForCV) return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoMode = urlParams.get('auto') === '1';
 
+        if (autoMode && this.waitingForCV) return;
         this.waitingForCV = true;
+
         if (this.cvStepText) this.cvStepText.setText('CV: Processing...');
 
         try {
             const frame = bridge.captureFrame();
             const response = await bridge.sendFrameAndWait(frame);
             this.cvStepCount++;
-            console.log('[CV] Step', this.cvStepCount, response);
-            if (this.cvStepText) this.cvStepText.setText(`CV: Step ${this.cvStepCount} - Press S`);
+            if (this.cvStepText) this.cvStepText.setText(autoMode ? `CV: Step ${this.cvStepCount}` : `CV: Step ${this.cvStepCount} - Press S`);
+            if (!autoMode) {
+                this.scene.resume();
+                this.events.once('postupdate', () => this.scene.pause());
+            }
         } catch (err) {
             console.error('[CV] Step error', err);
+            this.cvAutoStepRunning = false;
             if (this.cvStepText) this.cvStepText.setText('CV: Error - Press S');
         } finally {
-            this.waitingForCV = false;
+            if (autoMode) this.waitingForCV = false;
         }
     }
 
@@ -278,7 +313,6 @@ export class Game extends Scene
 
     update(time: number, delta: number) {
         if (!this.board) return;
-        if (this.waitingForCV) return; // Pause game while CV processes
         const t0 = performance.now();
         this.board.update(time, delta);
         const t1 = performance.now();

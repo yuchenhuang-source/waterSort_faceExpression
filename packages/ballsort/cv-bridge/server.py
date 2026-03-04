@@ -15,6 +15,7 @@ from cv_processor import process_frame
 
 try:
     import websockets
+    from websockets.exceptions import ConnectionClosed
 except ImportError:
     print("Install websockets: pip install websockets")
     sys.exit(1)
@@ -43,7 +44,13 @@ async def broadcast(data: dict):
     if not clients:
         return
     msg = json.dumps(data)
-    await asyncio.gather(*[ws.send(msg) for ws in clients if ws.open])
+    for ws in clients.copy():
+        try:
+            await ws.send(msg)
+        except ConnectionClosed:
+            pass
+        except Exception as e:
+            print(f"[CV] Broadcast to client failed: {e}")
 
 
 async def ws_handler(websocket):
