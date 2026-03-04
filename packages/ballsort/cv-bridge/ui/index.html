@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CV Bridge - Live View</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CV Bridge</h1>
+      <div class="status" id="status">Disconnected</div>
+    </header>
+    <main>
+      <div class="frame-container">
+        <img id="frame" alt="Latest frame from game" />
+        <canvas id="overlay"></canvas>
+      </div>
+      <aside>
+        <section>
+          <h2>Stats</h2>
+          <div id="stats">-</div>
+        </section>
+        <section>
+          <h2>Detections</h2>
+          <pre id="detections">Waiting for frames...</pre>
+        </section>
+      </aside>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

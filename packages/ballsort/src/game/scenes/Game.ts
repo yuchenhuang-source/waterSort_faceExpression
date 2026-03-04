@@ -9,6 +9,7 @@ import { getDownloadText } from '../../utils/i18n';
 import { getCachedPuzzle } from '../../utils/puzzleCache';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
+import { isCVModeEnabled, getCVBridge, destroyCVBridge } from '../cv-bridge/CVBridge';
 
 // 配置类型定义
 interface GameConfig {
@@ -43,6 +44,11 @@ export class Game extends Scene
     private hasTriggeredDownload: boolean = false;
     private currentDifficulty: number = 1;
     private currentEmptyTubeCount: number = 2;
+
+    // CV Bridge (Phase 1)
+    private waitingForCV: boolean = false;
+    private cvStepText: Phaser.GameObjects.Text | null = null;
+    private cvStepCount: number = 0;
 
     constructor ()
     {
@@ -101,6 +107,11 @@ export class Game extends Scene
 
         this.initDebugOverlay();
         if (isPerfEnabled()) initPerf();
+
+        // CV mode: connect to CV server, enable step-on-S
+        if (isCVModeEnabled()) {
+            this.initCVMode();
+        }
 
         // 难度 1/5/9 对应关卡 1/2/3，便于 AI 轮询 console 检测
         const levelNum = this.currentDifficulty === 1 ? 1 : this.currentDifficulty === 5 ? 2 : 3;
@@ -176,6 +187,62 @@ export class Game extends Scene
         });
     }
 
+    /**
+     * CV mode: connect to CV server, show "Press S to step", handle step loop
+     */
+    private initCVMode() {
+        const bridge = getCVBridge(this.game);
+        this.cvStepText = this.add.text(this.scale.width / 2, 60, 'CV: Connecting...', {
+            fontFamily: 'monospace',
+            fontSize: '20px',
+            color: '#00ff88',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            padding: { x: 12, y: 8 }
+        });
+        this.cvStepText.setOrigin(0.5, 0);
+        this.cvStepText.setDepth(20001);
+        this.cvStepText.setScrollFactor(0);
+
+        bridge.connect().then(() => {
+            if (this.cvStepText) this.cvStepText.setText('CV: Press S to step');
+            const keyS = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S);
+            keyS?.on('down', () => this.stepOneFrame());
+        }).catch((err) => {
+            console.error('[CV] Failed to connect', err);
+            if (this.cvStepText) this.cvStepText.setText('CV: Connection failed');
+        });
+
+        this.events.once('shutdown', () => {
+            destroyCVBridge();
+            if (this.cvStepText) {
+                this.cvStepText.destroy();
+                this.cvStepText = null;
+            }
+        });
+    }
+
+    private async stepOneFrame() {
+        const bridge = getCVBridge(this.game);
+        if (!bridge.isConnected()) return;
+        if (this.waitingForCV) return;
+
+        this.waitingForCV = true;
+        if (this.cvStepText) this.cvStepText.setText('CV: Processing...');
+
+        try {
+            const frame = bridge.captureFrame();
+            const response = await bridge.sendFrameAndWait(frame);
+            this.cvStepCount++;
+            console.log('[CV] Step', this.cvStepCount, response);
+            if (this.cvStepText) this.cvStepText.setText(`CV: Step ${this.cvStepCount} - Press S`);
+        } catch (err) {
+            console.error('[CV] Step error', err);
+            if (this.cvStepText) this.cvStepText.setText('CV: Error - Press S');
+        } finally {
+            this.waitingForCV = false;
+        }
+    }
+
     private updateDebugOverlay() {
         if (!this.debugText || !this.board) return;
 
@@ -211,6 +278,7 @@ export class Game extends Scene
 
     update(time: number, delta: number) {
         if (!this.board) return;
+        if (this.waitingForCV) return; // Pause game while CV processes
         const t0 = performance.now();
         this.board.update(time, delta);
         const t1 = performance.now();

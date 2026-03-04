@@ -23,6 +23,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n dev,tools -c blue,cyan \"vite --config vite/config.dev.mjs\" \"npm run dev-tools\"",
+    "dev:cv": "concurrently -n dev,cv -c blue,magenta \"npm run dev\" \"cv-bridge/venv/bin/python cv-bridge/server.py\"",
     "build": "vite build --config vite/config.prod.mjs && node scripts/remove-script.mjs",
     "dev-tools": "node --watch scripts/constants-editor-server.mjs",
     "dev:all": "npm run dev"
