@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ConstantsEditor } from './ConstantsEditor';
+import CVRecordControls from './CVRecordControls';
 import './DeviceSimulator.css';
 
 const PRESETS = [
@@ -55,6 +56,7 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
   const urlParams = new URLSearchParams(search);
   const isSimulatorView = urlParams.get('simulator') === '1';
   const showSimulator = import.meta.env.DEV && (urlParams.get('enableSimulator') === '1' || (isDesktop() && !isSimulatorView));
+  const isCVMode = urlParams.get('cv') === '1';
 
   useEffect(() => {
     if (!showSimulator || typeof window === 'undefined') return;
@@ -102,6 +104,12 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'icon-debug' && e.data.visibleRect && e.data.iconRect && typeof e.data.inBounds === 'boolean') {
         setIconDebug({ visibleRect: e.data.visibleRect, iconRect: e.data.iconRect, inBounds: e.data.inBounds });
+      }
+      if (e.data?.type === 'cv-record-export-complete' && typeof e.data.summary === 'string') {
+        console.log('[CV-RECORD] export completed (from iframe)', e.data.summary);
+      }
+      if (e.data?.type === 'cv-record-debug') {
+        console.log('[CV-RECORD] debug (from iframe)', e.data.msg, e.data.connected);
       }
     };
     window.addEventListener('message', handler);
@@ -252,6 +260,7 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
             ? `Icon: (${Math.round(iconDebug.iconRect.x)},${Math.round(iconDebug.iconRect.y)}) ${Math.round(iconDebug.iconRect.w)}×${Math.round(iconDebug.iconRect.h)} | Visible: (${Math.round(iconDebug.visibleRect.x)},${Math.round(iconDebug.visibleRect.y)}) ${Math.round(iconDebug.visibleRect.width)}×${Math.round(iconDebug.visibleRect.height)} | inBounds: ${String(iconDebug.inBounds)}`
             : 'icon-debug: waiting'}
         </span>
+        {isCVMode && <CVRecordControls iframeRef={iframeRef} />}
       </div>
       <div className={`device-simulator-body ${showConstantsEditor ? 'has-editor' : ''}`}>
         <div className="device-simulator-frame">

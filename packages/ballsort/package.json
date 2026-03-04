@@ -30,6 +30,7 @@
     "dev:all": "npm run dev"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "express": "^4.21.0",
     "@esotericsoftware/spine-phaser-v3": "^4.2.80",
     "base64-arraybuffer": "^1.0.2",

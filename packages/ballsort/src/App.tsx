@@ -7,6 +7,7 @@ import { Start } from './viewable-handler';
 import { EventBus } from './game/EventBus';
 import { getInitialLevelFromURL, setPersistentSelectedLevel, isLevelSelectionReady } from './game/levelSelection';
 import { pregeneratePuzzles } from './utils/puzzleCache';
+import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from './game/cvRecordEvents';
 
 // 导入背景图片
 import bgV from './assets/bg-v.png';
@@ -28,6 +29,29 @@ function App() {
 
     useEffect(() => {
         pregeneratePuzzles();
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const isCV = new URLSearchParams(window.location.search).get('cv') === '1';
+        const inIframe = window.self !== window.top;
+        if (!isCV || !inIframe) return;
+        const handler = (e: MessageEvent) => {
+            if (e.data?.type === 'cv-record-play') {
+                console.log('[CV-RECORD] iframe received play');
+                EventBus.emit(CV_RECORD_PLAY);
+            } else if (e.data?.type === 'cv-record-pause') EventBus.emit(CV_RECORD_PAUSE);
+            else if (e.data?.type === 'cv-record-end') EventBus.emit(CV_RECORD_END);
+        };
+        window.addEventListener('message', handler);
+        const unsub = (s: string) => {
+            if (window.self !== window.top) window.parent.postMessage({ type: 'cv-record-status', status: s }, '*');
+        };
+        EventBus.on(CV_RECORD_STATUS, unsub);
+        return () => {
+            window.removeEventListener('message', handler);
+            EventBus.off(CV_RECORD_STATUS, unsub);
+        };
     }, []);
 
     useEffect(() => {

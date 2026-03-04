@@ -126,7 +126,18 @@ export class CVBridge {
                 reject(new Error('Already waiting for response'));
                 return;
             }
-            this.pendingResolve = resolve;
+            const timeout = setTimeout(() => {
+                if (this.pendingResolve) {
+                    this.pendingResolve = null;
+                    reject(new Error('CV server response timeout (10s)'));
+                    console.warn('[CV] sendFrameAndWait timeout after 10s');
+                }
+            }, 10000);
+            const wrappedResolve = (v: CVResponse) => {
+                clearTimeout(timeout);
+                resolve(v);
+            };
+            this.pendingResolve = wrappedResolve;
             this.ws.send(JSON.stringify({ frame: frameBase64 }));
         });
     }

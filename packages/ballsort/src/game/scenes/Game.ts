@@ -10,6 +10,8 @@ import { getCachedPuzzle } from '../../utils/puzzleCache';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 import { isCVModeEnabled, getCVBridge, destroyCVBridge, CV_MODE_CHANGED } from '../cv-bridge/CVBridge';
+import JSZip from 'jszip';
+import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from '../cvRecordEvents';
 
 // 配置类型定义
 interface GameConfig {
@@ -50,6 +52,7 @@ export class Game extends Scene
     private waitingForCV: boolean = false;
     private cvStepText: Phaser.GameObjects.Text | null = null;
     private cvStepCount: number = 0;
+    private cvDetectionHistory: Array<{ timestamp: number; tubes: Array<{ id: number; x: number; y: number }>; balls: Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }> }> = [];
 
     constructor ()
     {
@@ -226,21 +229,22 @@ export class Game extends Scene
         const urlParams = new URLSearchParams(window.location.search);
         const autoMode = urlParams.get('auto') === '1';
 
-        if (!autoMode) {
-            this.waitingForCV = true; // Game frozen until S is pressed
-        }
+        this.waitingForCV = true;
+
+        EventBus.on(CV_RECORD_PLAY, this.onCVRecordPlay, this);
+        EventBus.on(CV_RECORD_PAUSE, this.onCVRecordPause, this);
+        EventBus.on(CV_RECORD_END, this.onCVRecordEnd, this);
 
         bridge.connect().then(() => {
             if (autoMode) {
-                if (this.cvStepText) this.cvStepText.setText('CV: Auto stepping...');
-                this.startAutoStepLoop();
+                if (this.cvStepText) this.cvStepText.setText('CV: 点击播放开始');
             } else {
-                this.scene.pause(); // Fully freeze: no update events, no tweens
                 if (this.cvStepText) this.cvStepText.setText('CV: Paused - Press S to step');
                 const handler = (e: KeyboardEvent) => { if (e.key === 's' || e.key === 'S') this.stepOneFrame(); };
                 document.addEventListener('keydown', handler);
                 this.events.once('shutdown', () => document.removeEventListener('keydown', handler));
             }
+            this.scene.pause();
         }).catch((err) => {
             console.error('[CV] Failed to connect', err);
             if (this.cvStepText) this.cvStepText.setText('CV: Connection failed');
@@ -249,6 +253,9 @@ export class Game extends Scene
         this.events.once('shutdown', () => {
             this.cvAutoStepRunning = false;
             EventBus.off(CV_MODE_CHANGED, this.setCVDebugModeForUI, this);
+            EventBus.off(CV_RECORD_PLAY, this.onCVRecordPlay, this);
+            EventBus.off(CV_RECORD_PAUSE, this.onCVRecordPause, this);
+            EventBus.off(CV_RECORD_END, this.onCVRecordEnd, this);
             destroyCVBridge();
             if (this.cvStepText) {
                 this.cvStepText.destroy();
@@ -257,12 +264,123 @@ export class Game extends Scene
         });
     }
 
+    private onCVRecordPlay = () => {
+        const connected = getCVBridge(this.game).isConnected();
+        console.log('[CV-RECORD] onCVRecordPlay called, bridge connected:', connected);
+        if (typeof window !== 'undefined' && window.self !== window.top) {
+            window.parent.postMessage({ type: 'cv-record-debug', msg: 'onCVRecordPlay', connected }, '*');
+        }
+        this.cvDetectionHistory = [];
+        this.cvAutoStepRunning = true;
+        this.waitingForCV = false;
+        this.scene.resume();
+        EventBus.emit(CV_RECORD_STATUS, 'recording' as const);
+        if (this.cvStepText) this.cvStepText.setText('CV: 录制中...');
+        const bridge = getCVBridge(this.game);
+        if (!bridge.isConnected()) {
+            console.log('[CV-RECORD] bridge not connected, waiting 500ms then retry');
+            this.time.delayedCall(500, () => {
+                if (this.cvAutoStepRunning && bridge.isConnected()) this.startAutoStepLoop();
+                else if (this.cvAutoStepRunning) console.warn('[CV-RECORD] bridge still not connected after 500ms');
+            }, [], this);
+        } else {
+            this.startAutoStepLoop();
+        }
+    };
+
+    private onCVRecordPause = () => {
+        this.cvAutoStepRunning = false;
+        this.waitingForCV = true;
+        this.scene.pause();
+        EventBus.emit(CV_RECORD_STATUS, 'paused' as const);
+        if (this.cvStepText) this.cvStepText.setText('CV: 已暂停');
+    };
+
+    private onCVRecordEnd = () => {
+        this.exportCsvAndZip();
+    };
+
+    private exportCsvAndZip() {
+        this.cvAutoStepRunning = false;
+        this.waitingForCV = true;
+        this.scene.pause();
+        EventBus.emit(CV_RECORD_STATUS, 'idle' as const);
+        if (this.cvStepText) this.cvStepText.setText('CV: 点击播放开始');
+
+        setTimeout(() => {
+            const history = this.cvDetectionHistory;
+            if (history.length === 0) {
+                const emptyMsg = JSON.stringify({ frames: 0, csvRows: 0, reason: 'no frames recorded' });
+                console.log('[CV-RECORD] export completed', emptyMsg);
+                if (typeof window !== 'undefined' && window.self !== window.top) {
+                    window.parent.postMessage({ type: 'cv-record-export-complete', summary: emptyMsg }, '*');
+                }
+                return;
+            }
+
+            const tubeIds = new Set<number>();
+            const ballIds = new Set<number>();
+            history.forEach(({ tubes, balls }) => {
+                tubes.forEach(t => tubeIds.add(t.id));
+                balls.forEach(b => ballIds.add(b.id));
+            });
+            const sortedTubeIds = [...tubeIds].sort((a, b) => a - b);
+            const sortedBallIds = [...ballIds].sort((a, b) => a - b);
+            const escapeCsv = (val: unknown): string => {
+                if (val === undefined || val === null || val === '') return '';
+                const s = String(val);
+                if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+                return s;
+            };
+            const headers = ['timestamp'];
+            sortedTubeIds.forEach(id => { headers.push(`T${id}_x`, `T${id}_y`); });
+            sortedBallIds.forEach(id => { headers.push(`B${id}_x`, `B${id}_y`, `B${id}_tubeId`, `B${id}_index`); });
+            const rows = [headers.join(',')];
+            history.forEach(({ timestamp, tubes, balls }) => {
+                const tubeMap = Object.fromEntries(tubes.map(t => [t.id, t]));
+                const ballMap = Object.fromEntries(balls.map(b => [b.id, b]));
+                const cells = [escapeCsv(timestamp)];
+                sortedTubeIds.forEach(id => {
+                    const t = tubeMap[id];
+                    cells.push(escapeCsv(t?.x ?? ''), escapeCsv(t?.y ?? ''));
+                });
+                sortedBallIds.forEach(id => {
+                    const b = ballMap[id];
+                    cells.push(escapeCsv(b?.x ?? ''), escapeCsv(b?.y ?? ''), escapeCsv(b?.tubeId ?? ''), escapeCsv(b?.index ?? ''));
+                });
+                rows.push(cells.join(','));
+            });
+            const csvContent = rows.join('\n');
+            const zip = new JSZip();
+            zip.file('detections.csv', csvContent);
+            zip.generateAsync({ type: 'blob' }).then(blob => {
+                const rowCount = rows.length - 1;
+                const summary = JSON.stringify({
+                    frames: history.length,
+                    csvRows: rowCount,
+                    headerCols: headers.length,
+                    sampleRow: rows[1] ? (rows[1].slice(0, 80) + (rows[1].length > 80 ? '...' : '')) : ''
+                });
+                console.log('[CV-RECORD] export completed', summary);
+                if (typeof window !== 'undefined' && window.self !== window.top) {
+                    window.parent.postMessage({ type: 'cv-record-export-complete', summary }, '*');
+                }
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `cv-detections-${Date.now()}.zip`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+            });
+            this.cvDetectionHistory = [];
+        }, 250);
+    }
+
     private cvAutoStepRunning = false;
 
     private startAutoStepLoop() {
         this.cvAutoStepRunning = true;
         const loop = async () => {
-            while (this.cvAutoStepRunning && this.scene?.isActive()) {
+            while (this.cvAutoStepRunning) {
                 await this.stepOneFrame();
                 await new Promise<void>((r) => setTimeout(r, 100));
             }
@@ -272,7 +390,10 @@ export class Game extends Scene
 
     private async stepOneFrame() {
         const bridge = getCVBridge(this.game);
-        if (!bridge.isConnected()) return;
+        if (!bridge.isConnected()) {
+            console.log('[CV-RECORD] stepOneFrame skipped: bridge not connected');
+            return;
+        }
         const urlParams = new URLSearchParams(window.location.search);
         const autoMode = urlParams.get('auto') === '1';
 
@@ -285,6 +406,17 @@ export class Game extends Scene
             const frame = bridge.captureFrame();
             const response = await bridge.sendFrameAndWait(frame);
             this.cvStepCount++;
+            const detections = response.detections || {};
+            const tubes = (detections.tubes || []) as Array<{ id: number; x: number; y: number }>;
+            const balls = (detections.balls || []) as Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }>;
+            if (this.cvAutoStepRunning) {
+                this.cvDetectionHistory.push({
+                    timestamp: Date.now(),
+                    tubes: tubes.map(t => ({ id: t.id, x: t.x, y: t.y })),
+                    balls: balls.map(b => ({ id: b.id, x: b.x, y: b.y, tubeId: b.tubeId, index: b.index }))
+                });
+                console.log('[CV-RECORD] frame', this.cvDetectionHistory.length);
+            }
             if (this.cvStepText) this.cvStepText.setText(autoMode ? `CV: Step ${this.cvStepCount}` : `CV: Step ${this.cvStepCount} - Press S`);
             if (!autoMode) {
                 this.scene.resume();
