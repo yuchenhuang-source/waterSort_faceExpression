@@ -39,6 +39,12 @@ function connect() {
           frameEl.src = src;
           frameEl.onload = () => {
             console.log('[CV-UI] img onload ok', frameEl.naturalWidth, 'x', frameEl.naturalHeight);
+            overlayEl.onload = () => {
+              // Now matching visual size with CSS scaling
+              overlayEl.style.width = frameEl.clientWidth + 'px';
+              overlayEl.style.height = frameEl.clientHeight + 'px';
+            };
+            // Initial assignment
             overlayEl.width = frameEl.naturalWidth;
             overlayEl.height = frameEl.naturalHeight;
             const ctx = overlayEl.getContext('2d');
