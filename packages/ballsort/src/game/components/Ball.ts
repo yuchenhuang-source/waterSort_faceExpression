@@ -19,6 +19,10 @@ export class Ball extends Phaser.GameObjects.Container {
     private ballExpressionSprite: Phaser.GameObjects.Sprite | null = null; // 选中升起时播放的圆球表情动画
     /** Phase 2: CV debug 模式下的 ArUco 标记（按需创建） */
     private arucoImage: Phaser.GameObjects.Image | null = null;
+    /** Phase 2: 进入 CV 模式前保存的可见性，退出时恢复 */
+    private _savedBallVisible = true;
+    private _savedLiquidVisible = false;
+    private _savedCandleVisible = false;
     private glowSprites: Phaser.GameObjects.Sprite[] = []; // 多层光晕精灵数组
     /** 选中悬浮时容器上下浮动的 tween（仅液体状态使用） */
     private containerHoverTween: Phaser.Tweens.Tween | null = null;
@@ -67,6 +71,9 @@ export class Ball extends Phaser.GameObjects.Container {
     public setCVDebugMode(enabled: boolean, arucoId: number): void {
         const key = `aruco_${arucoId}`;
         if (enabled) {
+            this._savedBallVisible = this.ballImage.visible;
+            this._savedLiquidVisible = this.liquidSprite.visible;
+            this._savedCandleVisible = this.candleImage.visible;
             if (!this.scene.textures.exists(key)) return;
             if (!this.arucoImage) {
                 this.arucoImage = this.scene.add.image(0, 0, key);
@@ -80,16 +87,13 @@ export class Ball extends Phaser.GameObjects.Container {
             this.liquidSprite.setVisible(false);
             this.candleImage.setVisible(false);
             if (this.ballExpressionSprite) this.ballExpressionSprite.setVisible(false);
+            this.glowSprites.forEach(g => g.setVisible(false));
             console.log('[CV-TEST] Ball setCVDebugMode', enabled, 'arucoId=', arucoId, 'arucoVisible=', this.arucoImage.visible);
         } else {
             if (this.arucoImage) this.arucoImage.setVisible(false);
-            this.ballImage.setVisible(true);
-            this.liquidSprite.setVisible(false);
-            this.candleImage.setVisible(false);
-            if (this.isCandle) {
-                this.ballImage.setVisible(false);
-                this.candleImage.setVisible(true);
-            }
+            this.ballImage.setVisible(this._savedBallVisible);
+            this.liquidSprite.setVisible(this._savedLiquidVisible);
+            this.candleImage.setVisible(this._savedCandleVisible);
         }
     }
 

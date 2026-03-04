@@ -97,7 +97,9 @@ export class Board extends Phaser.GameObjects.Container {
     public setCVDebugMode(enabled: boolean): void {
         console.log('[CV-TEST] Board.setCVDebugMode', enabled, 'tubes=', this.tubes.length);
         if (this.boardLiquidGraphics) this.boardLiquidGraphics.setVisible(!enabled);
-        if (this.hand) this.hand.setVisible(!enabled);
+        if (this.hand && this.scene.textures.exists('aruco_200')) {
+            this.hand.setTexture(enabled ? 'aruco_200' : 'hand');
+        }
         for (const tube of this.tubes) {
             tube.setCVDebugMode(enabled);
         }

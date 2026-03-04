@@ -40,6 +40,7 @@ def main():
         list(range(14))  # 0-13 tubes
         + list(range(100, 200))  # 100-199 balls (100 + tubeId*10 + slot)
         + [200]  # hand
+        + [201, 202]  # 201 icon, 202 download button
         + list(range(210, 214))  # 210-213 board corners
     )
 

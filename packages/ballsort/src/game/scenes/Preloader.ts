@@ -248,7 +248,7 @@ export class Preloader extends Scene {
         const arucoIds = [
             ...Array.from({ length: 14 }, (_, i) => i),
             ...Array.from({ length: 100 }, (_, i) => 100 + i),
-            200,
+            200, 201, 202,
             ...Array.from({ length: 4 }, (_, i) => 210 + i)
         ];
         for (const id of arucoIds) {
