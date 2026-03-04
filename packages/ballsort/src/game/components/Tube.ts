@@ -160,8 +160,8 @@ export class Tube extends Phaser.GameObjects.Container {
             ? scene.add.image(0, 0, arucoKey)
             : null;
         if (this.arucoImage) {
-            // ArUco 必须保持正方形才能被 OpenCV 正确检测；至少 160px 以保证可检测（横屏时试管仅 54px 宽）
-            const arucoSize = Math.max(160, Math.min(this.currentWidth, this.currentHeight));
+            // ArUco 必须保持正方形；32-48px 足够检测且减少重叠（方案1）
+            const arucoSize = Math.min(48, Math.max(32, Math.min(this.currentWidth, this.currentHeight) * 0.9));
             this.arucoImage.setDisplaySize(arucoSize, arucoSize);
             this.arucoImage.setVisible(false);
             this.add(this.arucoImage);
@@ -257,7 +257,7 @@ export class Tube extends Phaser.GameObjects.Container {
             height * Tube.HIGHLIGHT_HEIGHT_RATIO
         );
         if (this.arucoImage) {
-            const arucoSize = Math.max(160, Math.min(width, height));
+            const arucoSize = Math.min(48, Math.max(32, Math.min(width, height) * 0.9));
             this.arucoImage.setDisplaySize(arucoSize, arucoSize);
         }
         this.setSize(width, height);
@@ -306,6 +306,7 @@ export class Tube extends Phaser.GameObjects.Container {
         this.liquidContainer.setVisible(!enabled);
         if (this.arucoImage) {
             this.arucoImage.setVisible(enabled);
+            if (enabled) this.bringToTop(this.arucoImage);  // 方案5：试管 ArUco 置顶，不被球遮挡
             console.log('[CV-TEST] Tube', this.id, 'setCVDebugMode', enabled, 'arucoVisible=', this.arucoImage.visible);
         }
         if (this.candleImage) this.candleImage.setVisible(!enabled);

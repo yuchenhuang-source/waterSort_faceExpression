@@ -75,10 +75,10 @@ def process_frame(frame_base64: str) -> dict[str, Any]:
         aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_ARUCO_ORIGINAL)
         try:
             params = cv2.aruco.DetectorParameters()
-            # Relax for smaller markers (game canvas 1080x2160, markers ~40-80px)
-            params.minMarkerPerimeterRate = 0.005  # default 0.03, allow very small markers
+            # 方案3：放宽检测参数，支持更小标记
+            params.minMarkerPerimeterRate = 0.003  # default 0.03, allow very small markers
             params.adaptiveThreshWinSizeMin = 3
-            params.adaptiveThreshWinSizeMax = 23
+            params.adaptiveThreshWinSizeMax = 31
             params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
             detector = cv2.aruco.ArucoDetector(aruco_dict, params)
             corners, ids, rejected = detector.detectMarkers(gray)

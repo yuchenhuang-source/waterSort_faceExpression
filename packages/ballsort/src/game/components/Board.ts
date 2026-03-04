@@ -91,6 +91,7 @@ export class Board extends Phaser.GameObjects.Container {
     private onCVModeChanged = (enabled: boolean) => {
         console.log('[CV-TEST] Board received cv-mode-changed', enabled);
         this.setCVDebugMode(enabled);
+        this.refreshLayout();  // 方案4：切换 CV 模式时重新布局（增大间距）
     };
 
     /** Phase 2: 设置 CV debug 模式（ArUco 替换 sprite） */
@@ -184,7 +185,10 @@ export class Board extends Phaser.GameObjects.Container {
         const maskWidth = (config.TUBE_WIDTH - 4) * tubesScale;
         const maskHeight = (config.TUBE_HEIGHT - 4) * tubesScale;
         const radius = maskWidth / 2;
-        const colOffsetX = config.COL_OFFSET_X * tubesScale;
+        let colOffsetX = config.COL_OFFSET_X * tubesScale;
+        if (getCVBridge(this.scene.game).isCVDebugMode()) {
+            colOffsetX = Math.max(colOffsetX, 130);
+        }
         const rowSpacingY = config.ROW_SPACING_Y * tubesScale;
         const totalWidth = (tubeCols - 1) * colOffsetX;
         const totalHeight = (tubeRows - 1) * rowSpacingY;
@@ -2013,7 +2017,11 @@ export class Board extends Phaser.GameObjects.Container {
         // 重新排列试管（以所有 tubes 的中点定位，间距也应用 TUBES_SCALE）
         const tubeCols = cfg.TUBE_COLS ?? Config.GAME_CONFIG.TUBE_COLS;
         const tubeRows = cfg.TUBE_ROWS ?? Config.GAME_CONFIG.TUBE_ROWS;
-        const colOffsetX = config.COL_OFFSET_X * tubesScale;
+        let colOffsetX = config.COL_OFFSET_X * tubesScale;
+        // 方案4：CV 模式下增大间距，减少 ArUco 重叠（横屏 14 试管需 ~130px 才不重叠）
+        if (getCVBridge(this.scene.game).isCVDebugMode()) {
+            colOffsetX = Math.max(colOffsetX, 130);
+        }
         const rowSpacingY = config.ROW_SPACING_Y * tubesScale;
         const totalWidth = (tubeCols - 1) * colOffsetX;
         const totalHeight = (tubeRows - 1) * rowSpacingY;

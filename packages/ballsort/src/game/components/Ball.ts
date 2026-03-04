@@ -77,8 +77,8 @@ export class Ball extends Phaser.GameObjects.Container {
             if (!this.scene.textures.exists(key)) return;
             if (!this.arucoImage) {
                 this.arucoImage = this.scene.add.image(0, 0, key);
-                // ArUco 必须保持正方形才能被 OpenCV 正确检测
-                this.arucoImage.setDisplaySize(this.baseSize, this.baseSize);
+                // ArUco 必须保持正方形；40px 足够检测且减少重叠（方案1）
+                this.arucoImage.setDisplaySize(40, 40);
                 this.add(this.arucoImage);
             } else {
                 this.arucoImage.setTexture(key);
