@@ -23,6 +23,15 @@ export default defineConfig({
     },
     server: {
         port: 8081,
-        host: true
+        host: true,
+        proxy: {
+            '/api': {
+                target: 'http://localhost:3002',
+                changeOrigin: true,
+            },
+        },
+        watch: {
+            ignored: ['**/output-config.json'],
+        },
     }
 })

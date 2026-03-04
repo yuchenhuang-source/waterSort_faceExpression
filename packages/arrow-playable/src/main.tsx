@@ -1,9 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App.tsx';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+async function bootstrap() {
+  const App = (await import('./App')).default;
+  const { DeviceSimulator } = await import('./components/DeviceSimulator');
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
+      <DeviceSimulator>
         <App />
+      </DeviceSimulator>
     </React.StrictMode>,
-)
+  );
+}
+
+bootstrap();

@@ -21,11 +21,15 @@
     "typescript"
   ],
   "scripts": {
-    "dev": "vite --config vite/config.dev.mjs",
+    "clean": "rm -rf node_modules/.vite",
+    "dev": "concurrently -n dev,tools -c blue,cyan \"vite --config vite/config.dev.mjs\" \"npm run dev-tools\"",
+    "dev-tools": "node --watch scripts/constants-editor-server.mjs",
     "build": "vite build --config vite/config.prod.mjs && node scripts/remove-script.mjs"
   },
   "dependencies": {
     "@esotericsoftware/spine-phaser-v3": "^4.2.80",
+    "concurrently": "^9.1.0",
+    "express": "^4.21.0",
     "base64-arraybuffer": "^1.0.2",
     "glob": "^11.0.2",
     "phaser": "^3.88.2",

@@ -1,0 +1,147 @@
+.constants-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  background: #1a1a2e;
+  color: #eee;
+  font-family: system-ui, sans-serif;
+}
+
+.constants-editor-loading,
+.constants-editor-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.constants-editor-error p {
+  margin: 0;
+  color: #ff6b6b;
+  font-size: 14px;
+}
+
+.constants-editor-retry {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #00d9ff;
+  color: #1a1a2e;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.constants-editor-retry:hover {
+  background: #00b8d9;
+}
+
+.constants-editor-header {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.constants-editor-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 1.25rem;
+  color: #00d9ff;
+}
+
+.constants-editor-hint {
+  font-size: 13px;
+  color: #888;
+}
+
+.constants-editor-actions {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.constants-editor-build-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #e94560;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.constants-editor-build-btn:hover:not(:disabled) {
+  background: #ff6b6b;
+}
+
+.constants-editor-build-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.constants-editor-form {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.constants-editor-section {
+  background: #16213e;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.constants-editor-section h2 {
+  margin: 0 0 10px 0;
+  font-size: 0.9rem;
+  color: #e94560;
+}
+
+.constants-editor-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.constants-editor-row label {
+  min-width: 200px;
+  font-size: 13px;
+}
+
+.constants-editor-row input {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #0f3460;
+  background: #0f3460;
+  color: #eee;
+  width: 100px;
+  font-size: 13px;
+}
+
+.constants-editor-row input:focus {
+  outline: 1px solid #00d9ff;
+}
+
+.constants-editor-status {
+  flex-shrink: 0;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.constants-editor-status.ok {
+  background: #0f3460;
+  color: #00d9ff;
+}
+
+.constants-editor-status.err {
+  background: #3d1a1a;
+  color: #ff6b6b;
+}

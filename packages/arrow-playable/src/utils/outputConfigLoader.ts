@@ -50,21 +50,26 @@ export function getOutputConfig(): OutputConfig {
  * @returns Promise<OutputConfig> 解析后的配置对象
  */
 export async function getOutputConfigAsync(): Promise<OutputConfig> {
-  // 开发环境：使用 fetch 读取配置文件
+  // 开发环境：优先从 /api/constants 获取（与 ballsort dev server 一致），失败时回退到直接读 JSON
   if (import.meta.env.DEV) {
+    try {
+      const r = await fetch('/api/constants');
+      if (r.ok) {
+        return (await r.json()) || {};
+      }
+    } catch {
+      // dev-tools 未启动，回退到直接读 JSON
+    }
     try {
       const response = await fetch('/src/game/config/output-config.json');
       if (response.ok) {
         const config = await response.json();
         return config || {};
-      } else {
-        console.warn('开发环境下无法加载 output-config.json: HTTP', response.status);
-        return {};
       }
     } catch (error) {
       console.warn('开发环境下无法加载 output-config.json:', error);
-      return {};
     }
+    return {};
   }
 
   // 生产环境：从嵌入的数据中解析

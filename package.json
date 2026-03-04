@@ -5,9 +5,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:ballsort": "npm run dev -w @ballsort-multi/ballsort",
+    "clean:vite": "rm -rf node_modules/.vite packages/*/node_modules/.vite 2>/dev/null || true",
+    "kill:dev-ports": "node scripts/kill-dev-ports.mjs",
+    "dev:ballsort": "npm run kill:dev-ports && npm run dev -w @ballsort-multi/ballsort",
     "build:ballsort": "npm run build -w @ballsort-multi/ballsort",
-    "dev:arrow-playable": "npm run dev -w @ballsort-multi/arrow-playable",
+    "dev:arrow-playable": "npm run kill:dev-ports && npm run dev -w @ballsort-multi/arrow-playable",
     "build:arrow-playable": "npm run build -w @ballsort-multi/arrow-playable",
     "build:all": "npm run build -ws --if-present"
   }
