@@ -36,7 +36,7 @@ async def handle_game_message(websocket, message: dict) -> dict:
         return {"status": "error", "error": "missing frame"}
 
     result = process_frame(frame)
-    return {"status": "ok", "detections": result}
+    return {"status": result.get("status", "ok"), "detections": result}
 
 
 async def broadcast(data: dict):

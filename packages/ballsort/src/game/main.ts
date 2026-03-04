@@ -11,6 +11,7 @@ import { SpinePlugin } from '@esotericsoftware/spine-phaser-v3';
 //  https://newdocs.phaser.io/docs/3.70.0/Phaser.Types.Core.GameConfig
 const config: Phaser.Types.Core.GameConfig = {
     type: WEBGL,
+    preserveDrawingBuffer: true,  // 使 toDataURL 能正确捕获画面（CV 黑屏修复）
     width: 1080,
     height: 1920,
     transparent: true,

@@ -97,8 +97,13 @@ export class CVBridge {
      */
     captureFrame(): string {
         const canvas = this.game.canvas;
-        if (!canvas) return '';
-        return canvas.toDataURL('image/jpeg', 0.8);
+        if (!canvas) {
+            console.warn('[CV] captureFrame: no canvas');
+            return '';
+        }
+        const data = canvas.toDataURL('image/jpeg', 0.95);
+        console.log('[CV] captureFrame w=' + canvas.width + ' h=' + canvas.height + ' dataLen=' + data.length);
+        return data;
     }
 
     sendFrameAndWait(frameBase64: string): Promise<CVResponse> {
