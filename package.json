@@ -7,6 +7,8 @@
   "scripts": {
     "dev:ballsort": "npm run dev -w @ballsort-multi/ballsort",
     "build:ballsort": "npm run build -w @ballsort-multi/ballsort",
+    "dev:arrow-playable": "npm run dev -w @ballsort-multi/arrow-playable",
+    "build:arrow-playable": "npm run build -w @ballsort-multi/arrow-playable",
     "build:all": "npm run build -ws --if-present"
   }
 }
