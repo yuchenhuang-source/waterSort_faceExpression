@@ -160,7 +160,9 @@ export class Tube extends Phaser.GameObjects.Container {
             ? scene.add.image(0, 0, arucoKey)
             : null;
         if (this.arucoImage) {
-            this.arucoImage.setDisplaySize(this.currentWidth, this.currentHeight);
+            // ArUco 必须保持正方形才能被 OpenCV 正确检测；至少 160px 以保证可检测（横屏时试管仅 54px 宽）
+            const arucoSize = Math.max(160, Math.min(this.currentWidth, this.currentHeight));
+            this.arucoImage.setDisplaySize(arucoSize, arucoSize);
             this.arucoImage.setVisible(false);
             this.add(this.arucoImage);
         }
@@ -254,7 +256,10 @@ export class Tube extends Phaser.GameObjects.Container {
             width * Tube.HIGHLIGHT_WIDTH_RATIO,
             height * Tube.HIGHLIGHT_HEIGHT_RATIO
         );
-        if (this.arucoImage) this.arucoImage.setDisplaySize(width, height);
+        if (this.arucoImage) {
+            const arucoSize = Math.max(160, Math.min(width, height));
+            this.arucoImage.setDisplaySize(arucoSize, arucoSize);
+        }
         this.setSize(width, height);
         
         // 更新交互区域

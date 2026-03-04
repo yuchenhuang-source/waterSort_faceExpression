@@ -43,7 +43,9 @@ def process_frame(frame_base64: str) -> dict[str, Any]:
         b64 = frame_base64.split(",")[-1] if "," in frame_base64 else frame_base64
         img_data = base64.b64decode(b64)
         nparr = np.frombuffer(img_data, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if img is None:
             detections["status"] = "error"
@@ -53,6 +55,14 @@ def process_frame(frame_base64: str) -> dict[str, Any]:
             return detections
 
         detections["frameSize"] = {"width": img.shape[1], "height": img.shape[0]}
+
+        # 若 PNG 含 alpha，透明区域转为白色，避免黑底导致 ArUco 不可见
+        if len(img.shape) == 3 and img.shape[2] == 4:
+            alpha = img[:, :, 3]
+            rgb = img[:, :, :3]
+            white = np.ones_like(rgb) * 255
+            alpha_3 = np.stack([alpha, alpha, alpha], axis=-1) / 255.0
+            img = (rgb * alpha_3 + white * (1 - alpha_3)).astype(np.uint8)
 
         if not HAS_OPENCV:
             detections["status"] = "ok"
@@ -66,7 +76,10 @@ def process_frame(frame_base64: str) -> dict[str, Any]:
         try:
             params = cv2.aruco.DetectorParameters()
             # Relax for smaller markers (game canvas 1080x2160, markers ~40-80px)
-            params.minMarkerPerimeterRate = 0.01  # default 0.03
+            params.minMarkerPerimeterRate = 0.005  # default 0.03, allow very small markers
+            params.adaptiveThreshWinSizeMin = 3
+            params.adaptiveThreshWinSizeMax = 23
+            params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
             detector = cv2.aruco.ArucoDetector(aruco_dict, params)
             corners, ids, rejected = detector.detectMarkers(gray)
         except (AttributeError, TypeError):

@@ -101,7 +101,17 @@ export class CVBridge {
             console.warn('[CV] captureFrame: no canvas');
             return '';
         }
-        const data = canvas.toDataURL('image/jpeg', 0.95);
+        // 透明背景合成到白色，避免黑底导致 ArUco 不可见
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+        const ctx = offscreen.getContext('2d');
+        if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+            ctx.drawImage(canvas, 0, 0);
+        }
+        const data = (ctx ? offscreen : canvas).toDataURL('image/png');
         console.log('[CV] captureFrame w=' + canvas.width + ' h=' + canvas.height + ' dataLen=' + data.length);
         return data;
     }

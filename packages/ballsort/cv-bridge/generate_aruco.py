@@ -44,8 +44,10 @@ def main():
         + list(range(210, 214))  # 210-213 board corners
     )
 
+    BORDER_PX = 25  # 白边有助于 OpenCV ArUco 检测
     for marker_id in ids:
         img = gen_marker(marker_id)
+        img = cv2.copyMakeBorder(img, BORDER_PX, BORDER_PX, BORDER_PX, BORDER_PX, cv2.BORDER_CONSTANT, value=255)
         path = os.path.join(OUT_DIR, f"aruco_{marker_id}.png")
         cv2.imwrite(path, img)
         print(f"Generated {path}")
