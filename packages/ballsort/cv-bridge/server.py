@@ -112,7 +112,7 @@ async def serve_http(reader, writer):
             ".js": "application/javascript",
             ".css": "text/css",
         }.get(ext, "application/octet-stream")
-        cache = "no-cache" if ext in (".html", ".js") else "public, max-age=3600"
+        cache = "no-cache"  # 开发时避免缓存，便于看到 UI 修改
         writer.write(f"HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nCache-Control: {cache}\r\nContent-Length: {len(content)}\r\n\r\n".encode())
         writer.write(content)
     else:

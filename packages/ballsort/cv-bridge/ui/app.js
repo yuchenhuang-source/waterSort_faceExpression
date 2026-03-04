@@ -67,6 +67,41 @@ function connect() {
         if (summaryEl) {
           summaryEl.textContent = `检测到: ${tubes.length} 个试管 [${tubeIds || '-'}], ${balls.length} 个球 [${ballIds || '-'}]`;
         }
+        const listEl = document.getElementById('detection-list');
+        if (listEl) {
+          listEl.innerHTML = '';
+          if (tubes.length > 0) {
+            const group = document.createElement('div');
+            group.className = 'detection-group';
+            const h3 = document.createElement('h3');
+            h3.textContent = `Tubes (${tubes.length})`;
+            group.appendChild(h3);
+            tubes.forEach(t => {
+              const item = document.createElement('span');
+              item.className = 'detection-capsule tube';
+              item.textContent = `T${t.id} (${t.x?.toFixed(1) ?? '-'}, ${t.y?.toFixed(1) ?? '-'})`;
+              group.appendChild(item);
+            });
+            listEl.appendChild(group);
+          }
+          if (balls.length > 0) {
+            const group = document.createElement('div');
+            group.className = 'detection-group';
+            const h3 = document.createElement('h3');
+            h3.textContent = `Balls (${balls.length})`;
+            group.appendChild(h3);
+            balls.forEach(b => {
+              const item = document.createElement('span');
+              item.className = 'detection-capsule ball';
+              item.textContent = `B${b.id} [${b.tubeId ?? '-'}:${b.index ?? '-'}] (${b.x?.toFixed(1) ?? '-'}, ${b.y?.toFixed(1) ?? '-'})`;
+              group.appendChild(item);
+            });
+            listEl.appendChild(group);
+          }
+          if (tubes.length === 0 && balls.length === 0) {
+            listEl.textContent = '-';
+          }
+        }
         detectionsEl.textContent = JSON.stringify(detections, null, 2);
       }
     } catch (e) {

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CV Bridge - Live View</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=capsule">
 </head>
 <body>
   <div class="container">
@@ -26,11 +26,12 @@
           <h2>Detections</h2>
           <p class="hint">Use <code>?cv=1&auto=1</code> for auto frames, or press <strong>S</strong> in the game for manual step.</p>
           <div id="detection-summary" class="detection-summary" role="status" aria-live="polite">-</div>
+          <div id="detection-list" class="detection-list" aria-live="polite"></div>
           <pre id="detections">Waiting for frames...</pre>
         </section>
       </aside>
     </main>
   </div>
-  <script src="app.js?v=detection-summary"></script>
+  <script src="app.js?v=capsule"></script>
 </body>
 </html>

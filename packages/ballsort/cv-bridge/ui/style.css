@@ -114,6 +114,52 @@ section h2 {
   color: #0f0;
 }
 
+.detection-list {
+  font-family: monospace;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.detection-group {
+  margin-bottom: 0.5rem;
+}
+
+.detection-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.detection-group h3 {
+  flex-basis: 100%;
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.detection-capsule {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.detection-capsule.tube {
+  background: rgba(0, 255, 0, 0.2);
+  color: #0f0;
+  border: 1px solid #0f0;
+}
+
+.detection-capsule.ball {
+  background: rgba(255, 136, 0, 0.2);
+  color: #f80;
+  border: 1px solid #f80;
+}
+
 #detections {
   margin: 0;
   font-size: 0.75rem;
