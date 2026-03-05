@@ -409,13 +409,16 @@ export class Game extends Scene
 
         try {
             const { data: frame, colorMap } = this.captureColorCodedFrame();
+            // #region agent log
+            fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'97ae77'},body:JSON.stringify({sessionId:'97ae77',location:'Game.ts:stepOneFrame',message:'H1 colorMap check',data:{colorMapKeys:Object.keys(colorMap).length,sampleKeys:Object.keys(colorMap).slice(0,3),frameLen:frame.length},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             const response = await bridge.sendFrameAndWait(frame, colorMap);
             this.cvStepCount++;
             const detections = response.detections || {};
             const tubes = (detections.tubes || []) as Array<{ id: number; x: number; y: number }>;
             const balls = (detections.balls || []) as Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }>;
             // #region agent log
-            fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'97ae77'},body:JSON.stringify({sessionId:'97ae77',location:'Game.ts:stepOneFrame',message:'CV detections',data:{status:response.status,tubeIds:tubes.map(t=>t.id),ballIds:balls.map(b=>b.id),tubeCount:tubes.length,ballCount:balls.length,frameSize:detections.frameSize},timestamp:Date.now()})}).catch(()=>{});
+            fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'97ae77'},body:JSON.stringify({sessionId:'97ae77',location:'Game.ts:stepOneFrame',message:'CV detections',data:{status:response.status,error:(response as any).error||(detections as any).error||null,tubeIds:tubes.map(t=>t.id),ballIds:balls.map(b=>b.id),tubeCount:tubes.length,ballCount:balls.length,frameSize:detections.frameSize},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
             if (this.cvAutoStepRunning) {
                 this.cvDetectionHistory.push({

@@ -65,6 +65,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None) 
         return result
 
     target_colors = _parse_color_map(color_map)
+    print(f"[CV-DBG] H1/H4 colorMap entries received={len(color_map)} parsed={len(target_colors)} sample={list(color_map.items())[:3]}")
     if not target_colors:
         result["status"] = "error"
         result["error"] = "colorMap is empty or unparseable"
@@ -86,6 +87,8 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None) 
         non_white = np.any(rgb < 250, axis=2)
         valid_mask = opaque & non_white
 
+        valid_count = int(np.sum(valid_mask))
+        print(f"[CV-DBG] H2 valid pixels (non-white+opaque)={valid_count} total={w*h}")
         if not np.any(valid_mask):
             result["status"] = "ok"
             result["processingMs"] = round((time.perf_counter() - t0) * 1000, 2)
@@ -99,6 +102,8 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None) 
         # Flatten valid pixels
         ys_all, xs_all = np.where(valid_mask)
         flat_rgb = rgb[ys_all, xs_all]  # (N, 3)
+        N, K = len(flat_rgb), len(tc_rgb)
+        print(f"[CV-DBG] H3-pre N_valid_pixels={N} K_colors={K} est_mem_MB={N*K*3*4/1024/1024:.1f}")
 
         # Nearest-neighbour: for each pixel find closest target color
         # diff: (N, K, 3)
@@ -108,6 +113,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None) 
         nearest_dist = dist_sq[np.arange(len(flat_rgb)), nearest_idx]  # (N,)
 
         accepted = nearest_dist < MATCH_DIST_THRESH_SQ
+        print(f"[CV-DBG] H3 pixels accepted={int(np.sum(accepted))}/{len(flat_rgb)} min_dist_sq={int(np.min(nearest_dist))} max_dist_sq={int(np.max(nearest_dist))} threshold={MATCH_DIST_THRESH_SQ}")
 
         # Group pixels by object ID
         obj_pixels: dict[int, tuple[list[int], list[int]]] = {}
