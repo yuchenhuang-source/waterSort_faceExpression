@@ -30,9 +30,11 @@ function connect() {
         const detections = data.detections || {};
         const tubes = detections.tubes || [];
         const balls = detections.balls || [];
+        const hand = detections.hand || null;
+        const buttons = detections.buttons || [];
         const tubeIds = tubes.map(t => t.id).join(',');
         const ballIds = balls.map(b => b.id).join(',');
-        console.log('[CV-UI] frame_processed frameLen=' + (frame?.length || 0) + ' hasFrame=' + !!frame + ' frameSize=' + JSON.stringify(detections.frameSize) + ' detected tubes=' + tubeIds + ' balls=' + ballIds + ' count=' + tubes.length + ',' + balls.length);
+        console.log('[CV-UI] frame_processed frameLen=' + (frame?.length || 0) + ' hasFrame=' + !!frame + ' frameSize=' + JSON.stringify(detections.frameSize) + ' detected tubes=' + tubeIds + ' balls=' + ballIds + ' hand=' + !!hand + ' buttons=' + buttons.map(b=>b.label).join(','));
         if (frame) {
           const src = frame.startsWith('data:') ? frame : 'data:image/jpeg;base64,' + frame;
           frameEl.onerror = () => console.error('[CV-UI] img onerror - frame failed to load');
@@ -66,12 +68,30 @@ function connect() {
               ctx.font = '12px monospace';
               ctx.fillText(`B${b.id}`, b.x - 6, b.y + 4);
             });
+            if (hand) {
+              ctx.strokeStyle = '#0ff';
+              ctx.lineWidth = 3;
+              ctx.strokeRect(hand.x - 12, hand.y - 12, 24, 24);
+              ctx.fillStyle = '#0ff';
+              ctx.font = '13px monospace';
+              ctx.fillText('HAND', hand.x - 14, hand.y - 14);
+            }
+            buttons.forEach(btn => {
+              ctx.strokeStyle = '#f0f';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(btn.x - 10, btn.y - 10, 20, 20);
+              ctx.fillStyle = '#f0f';
+              ctx.font = '12px monospace';
+              ctx.fillText(btn.label.toUpperCase(), btn.x - 10, btn.y - 12);
+            });
           };
         }
         statsEl.textContent = `Frames: ${frameCount}\nProcessing: ${detections.processingMs ?? '-'} ms`;
         const summaryEl = document.getElementById('detection-summary');
         if (summaryEl) {
-          summaryEl.textContent = `检测到: ${tubes.length} 个试管 [${tubeIds || '-'}], ${balls.length} 个球 [${ballIds || '-'}]`;
+          const handStr = hand ? ` | 手 (${hand.x},${hand.y})` : '';
+          const btnStr = buttons.length > 0 ? ` | 按钮 [${buttons.map(b=>b.label).join(',')}]` : '';
+          summaryEl.textContent = `检测到: ${tubes.length} 个试管 [${tubeIds || '-'}], ${balls.length} 个球 [${ballIds || '-'}]${handStr}${btnStr}`;
         }
         const listEl = document.getElementById('detection-list');
         if (listEl) {
@@ -104,7 +124,36 @@ function connect() {
             });
             listEl.appendChild(group);
           }
-          if (tubes.length === 0 && balls.length === 0) {
+          if (hand) {
+            const group = document.createElement('div');
+            group.className = 'detection-group';
+            const h3 = document.createElement('h3');
+            h3.textContent = 'Hand';
+            group.appendChild(h3);
+            const item = document.createElement('span');
+            item.className = 'detection-capsule';
+            item.style.background = '#0cc';
+            item.textContent = `HAND (${hand.x?.toFixed(1) ?? '-'}, ${hand.y?.toFixed(1) ?? '-'}) px=${hand.pixels}`;
+            group.appendChild(item);
+            listEl.appendChild(group);
+          }
+          if (buttons.length > 0) {
+            const group = document.createElement('div');
+            group.className = 'detection-group';
+            const h3 = document.createElement('h3');
+            h3.textContent = `Buttons (${buttons.length})`;
+            group.appendChild(h3);
+            buttons.forEach(btn => {
+              const item = document.createElement('span');
+              item.className = 'detection-capsule';
+              item.style.background = '#c0c';
+              item.style.color = '#fff';
+              item.textContent = `${btn.label.toUpperCase()} id=${btn.id} (${btn.x?.toFixed(1) ?? '-'}, ${btn.y?.toFixed(1) ?? '-'})`;
+              group.appendChild(item);
+            });
+            listEl.appendChild(group);
+          }
+          if (tubes.length === 0 && balls.length === 0 && !hand && buttons.length === 0) {
             listEl.textContent = '-';
           }
         }

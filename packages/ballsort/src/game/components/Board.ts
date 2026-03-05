@@ -124,7 +124,9 @@ export class Board extends Phaser.GameObjects.Container {
                 ids.push(100 + tube.id * 10 + i);
             }
         }
-        if (this.hand) ids.push(200);
+        if (this.hand) ids.push(500);
+        ids.push(501); // icon button (always present)
+        ids.push(502); // download button (always present)
         return ids;
     }
 

@@ -8,9 +8,9 @@ entry in colorMap (Euclidean distance in RGB space, threshold 25).
 ID ranges (from game):
   Tubes:    0 ~ N-1
   Balls:    100 + tubeId*10 + slotIndex
-  Hand:     200
-  Icon:     201
-  Download: 202
+  Hand:     500
+  Icon:     501
+  Download: 502
 """
 import base64
 import io
@@ -52,7 +52,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
     Returns: { status, tubes, balls, hand, processingMs, detectedIds }
     """
     t0 = time.perf_counter()
-    result: dict[str, Any] = {"tubes": [], "balls": []}
+    result: dict[str, Any] = {"tubes": [], "balls": [], "buttons": []}
 
     if not HAS_PIL:
         result["status"] = "error"
@@ -152,7 +152,10 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
                 })
             elif obj_id == 500:
                 hand = {"id": 500, "x": cx, "y": cy, "pixels": pixel_count}
-            # 501/502 (icon/download) - not forwarded to game logic yet
+            elif obj_id == 501:
+                result["buttons"].append({"id": 501, "label": "icon", "x": cx, "y": cy, "pixels": pixel_count})
+            elif obj_id == 502:
+                result["buttons"].append({"id": 502, "label": "download", "x": cx, "y": cy, "pixels": pixel_count})
 
         if hand:
             result["hand"] = hand
@@ -162,6 +165,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
             active_set = set(active_ids)
             result["tubes"] = [t for t in result["tubes"] if t["id"] in active_set]
             result["balls"] = [b for b in result["balls"] if b["id"] in active_set]
+            result["buttons"] = [b for b in result["buttons"] if b["id"] in active_set]
             if hand and hand["id"] not in active_set:
                 result.pop("hand", None)
 
