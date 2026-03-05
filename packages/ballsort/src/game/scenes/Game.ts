@@ -509,13 +509,14 @@ export class Game extends Scene
         (this.cameras as any).render(renderer, this.children, 1);
         renderer.postRender();
 
-        // Capture canvas
+        // Capture canvas — downsample 4x to reduce N by 16x for Python processing
+        const CV_DOWNSAMPLE = 4;
         const canvas = this.game.canvas;
         const offscreen = document.createElement('canvas');
-        offscreen.width = canvas.width;
-        offscreen.height = canvas.height;
+        offscreen.width = Math.round(canvas.width / CV_DOWNSAMPLE);
+        offscreen.height = Math.round(canvas.height / CV_DOWNSAMPLE);
         const ctx = offscreen.getContext('2d')!;
-        ctx.drawImage(canvas, 0, 0);
+        ctx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
         const data = offscreen.toDataURL('image/png');
 
         // Restore everything
