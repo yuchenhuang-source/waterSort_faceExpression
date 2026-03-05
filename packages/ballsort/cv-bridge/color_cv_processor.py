@@ -45,7 +45,7 @@ def _parse_color_map(color_map: dict) -> list[tuple[int, int, int, int]]:
     return result
 
 
-def process_color_coded_frame(frame_base64: str, color_map: dict | None = None) -> dict[str, Any]:
+def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, active_ids: list | None = None) -> dict[str, Any]:
     """
     Process a color-coded frame from the game.
     color_map: { "rrggbb": objectId } — sent by the game alongside each frame.
@@ -157,14 +157,22 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None) 
         if hand:
             result["hand"] = hand
 
+        # Filter to only active IDs if provided by the game
+        if active_ids is not None:
+            active_set = set(active_ids)
+            result["tubes"] = [t for t in result["tubes"] if t["id"] in active_set]
+            result["balls"] = [b for b in result["balls"] if b["id"] in active_set]
+            if hand and hand["id"] not in active_set:
+                result.pop("hand", None)
+
         result["detectedIds"] = sorted(detected_ids)
         result["status"] = "ok"
 
         print(
             f"[CV] tubes={len(result['tubes'])} "
             f"balls={len(result['balls'])} "
-            f"hand={'yes' if hand else 'no'} "
-            f"ids={sorted(detected_ids)}"
+            f"hand={'yes' if result.get('hand') else 'no'} "
+            f"ids={sorted(t['id'] for t in result['tubes'])+sorted(b['id'] for b in result['balls'])}"
         )
 
     except base64.binascii.Error as e:

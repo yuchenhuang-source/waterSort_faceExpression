@@ -95,6 +95,21 @@ export class Board extends Phaser.GameObjects.Container {
         this.refreshLayout();  // 方案4：切换 CV 模式时重新布局（增大间距）
     };
 
+    /** Returns world pixel positions for all tubes and present balls (for CV comparison). */
+    public getExpectedObjectPositions(): Array<{ id: number; x: number; y: number; type: string }> {
+        const result: Array<{ id: number; x: number; y: number; type: string }> = [];
+        for (const tube of this.tubes) {
+            const m = tube.getWorldTransformMatrix();
+            result.push({ id: tube.id, x: Math.round(m.tx), y: Math.round(m.ty), type: 'tube' });
+            const ballCount = tube.balls.length;
+            for (let i = 0; i < ballCount; i++) {
+                const ballId = 100 + tube.id * 10 + i;
+                result.push({ id: ballId, x: Math.round(m.tx), y: Math.round(m.ty), type: 'ball' });
+            }
+        }
+        return result;
+    }
+
     /**
      * Returns all object IDs currently rendered on the board (tubes + actual balls + hand).
      * Used by Game.ts to generate a complete color map before the ID capture pass.

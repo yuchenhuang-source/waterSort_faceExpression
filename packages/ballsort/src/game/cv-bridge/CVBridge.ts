@@ -130,7 +130,7 @@ export class CVBridge {
         return gameScene.captureColorCodedFrame();
     }
 
-    sendFrameAndWait(frameBase64: string, colorMap?: ColorMap): Promise<CVResponse> {
+    sendFrameAndWait(frameBase64: string, colorMap?: ColorMap, activeIds?: number[]): Promise<CVResponse> {
         return new Promise((resolve, reject) => {
             if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
                 reject(new Error('CV server not connected'));
@@ -154,6 +154,7 @@ export class CVBridge {
             this.pendingResolve = wrappedResolve;
             const msg: Record<string, unknown> = { frame: frameBase64 };
             if (colorMap) msg.colorMap = colorMap;
+            if (activeIds) msg.activeIds = activeIds;
             this.ws.send(JSON.stringify(msg));
         });
     }

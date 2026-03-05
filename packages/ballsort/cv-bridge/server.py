@@ -36,7 +36,8 @@ async def handle_game_message(websocket, message: dict) -> dict:
         return {"status": "error", "error": "missing frame"}
 
     color_map = message.get("colorMap") or {}
-    result = process_color_coded_frame(frame, color_map)
+    active_ids = message.get("activeIds")  # list of currently-present object IDs
+    result = process_color_coded_frame(frame, color_map, active_ids)
     return {"status": result.get("status", "ok"), "detections": result}
 
 
