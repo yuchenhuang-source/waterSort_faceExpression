@@ -46,43 +46,59 @@ function connect() {
               overlayEl.style.width = frameEl.clientWidth + 'px';
               overlayEl.style.height = frameEl.clientHeight + 'px';
             };
-            // Initial assignment
+            // Set canvas logical size to match frame's natural size
             overlayEl.width = frameEl.naturalWidth;
             overlayEl.height = frameEl.naturalHeight;
+            // Position canvas CSS to exactly match the displayed img position and size
+            // (img is centered via flexbox with object-fit:contain; canvas must overlay it exactly)
+            overlayEl.style.left = frameEl.offsetLeft + 'px';
+            overlayEl.style.top = frameEl.offsetTop + 'px';
+            overlayEl.style.width = frameEl.clientWidth + 'px';
+            overlayEl.style.height = frameEl.clientHeight + 'px';
+            // coordScale: Python returns coords in original game space; canvas is in downsampled space
+            const coordScale = detections.frameSize?.coordScale ?? 1;
+            // #region agent log
+            fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'97ae77'},body:JSON.stringify({sessionId:'97ae77',location:'app.js:overlay',message:'overlay positioning',data:{coordScale,canvasLogical:overlayEl.width+'x'+overlayEl.height,imgClientWH:frameEl.clientWidth+'x'+frameEl.clientHeight,imgOffsetLT:frameEl.offsetLeft+','+frameEl.offsetTop,sampleTube:tubes[0]??null},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            const s = 1 / coordScale; // factor to convert game coords -> canvas coords
             const ctx = overlayEl.getContext('2d');
             ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
-            // Phase 3: draw detection boxes
+            // Phase 3: draw detection boxes (scale coords from game space to canvas space)
             tubes.forEach(t => {
+              const dx = t.x * s, dy = t.y * s;
               ctx.strokeStyle = '#0f0';
               ctx.lineWidth = 2;
-              ctx.strokeRect(t.x - 8, t.y - 8, 16, 16);
+              ctx.strokeRect(dx - 8, dy - 8, 16, 16);
               ctx.fillStyle = '#0f0';
               ctx.font = '12px monospace';
-              ctx.fillText(`T${t.id}`, t.x - 6, t.y + 4);
+              ctx.fillText(`T${t.id}`, dx - 6, dy + 4);
             });
             balls.forEach(b => {
+              const dx = b.x * s, dy = b.y * s;
               ctx.strokeStyle = '#f80';
               ctx.lineWidth = 2;
-              ctx.strokeRect(b.x - 8, b.y - 8, 16, 16);
+              ctx.strokeRect(dx - 8, dy - 8, 16, 16);
               ctx.fillStyle = '#f80';
               ctx.font = '12px monospace';
-              ctx.fillText(`B${b.id}`, b.x - 6, b.y + 4);
+              ctx.fillText(`B${b.id}`, dx - 6, dy + 4);
             });
             if (hand) {
+              const dx = hand.x * s, dy = hand.y * s;
               ctx.strokeStyle = '#0ff';
               ctx.lineWidth = 3;
-              ctx.strokeRect(hand.x - 12, hand.y - 12, 24, 24);
+              ctx.strokeRect(dx - 12, dy - 12, 24, 24);
               ctx.fillStyle = '#0ff';
               ctx.font = '13px monospace';
-              ctx.fillText('HAND', hand.x - 14, hand.y - 14);
+              ctx.fillText('HAND', dx - 14, dy - 14);
             }
             buttons.forEach(btn => {
+              const dx = btn.x * s, dy = btn.y * s;
               ctx.strokeStyle = '#f0f';
               ctx.lineWidth = 2;
-              ctx.strokeRect(btn.x - 10, btn.y - 10, 20, 20);
+              ctx.strokeRect(dx - 10, dy - 10, 20, 20);
               ctx.fillStyle = '#f0f';
               ctx.font = '12px monospace';
-              ctx.fillText(btn.label.toUpperCase(), btn.x - 10, btn.y - 12);
+              ctx.fillText(btn.label.toUpperCase(), dx - 10, dy - 12);
             });
           };
         }
