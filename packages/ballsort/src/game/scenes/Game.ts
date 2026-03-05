@@ -10,6 +10,7 @@ import { getCachedPuzzle } from '../../utils/puzzleCache';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 import { isCVModeEnabled, getCVBridge, destroyCVBridge, CV_MODE_CHANGED } from '../cv-bridge/CVBridge';
+import { generateColorMap, ColorMap } from '../render/ObjectIdPipeline';
 import JSZip from 'jszip';
 import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from '../cvRecordEvents';
 
@@ -53,6 +54,10 @@ export class Game extends Scene
     private cvStepText: Phaser.GameObjects.Text | null = null;
     private cvStepCount: number = 0;
     private cvDetectionHistory: Array<{ timestamp: number; tubes: Array<{ id: number; x: number; y: number }>; balls: Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }> }> = [];
+
+    /** Stable color map: generated once per game session, reused every frame. */
+    private _colorMap: ColorMap | null = null;
+    private _idToColor: Map<number, number> | null = null;
 
     constructor ()
     {
@@ -403,12 +408,15 @@ export class Game extends Scene
         if (this.cvStepText) this.cvStepText.setText('CV: Processing...');
 
         try {
-            const frame = bridge.captureFrame();
-            const response = await bridge.sendFrameAndWait(frame);
+            const { data: frame, colorMap } = this.captureColorCodedFrame();
+            const response = await bridge.sendFrameAndWait(frame, colorMap);
             this.cvStepCount++;
             const detections = response.detections || {};
             const tubes = (detections.tubes || []) as Array<{ id: number; x: number; y: number }>;
             const balls = (detections.balls || []) as Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }>;
+            // #region agent log
+            fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'97ae77'},body:JSON.stringify({sessionId:'97ae77',location:'Game.ts:stepOneFrame',message:'CV detections',data:{status:response.status,tubeIds:tubes.map(t=>t.id),ballIds:balls.map(b=>b.id),tubeCount:tubes.length,ballCount:balls.length,frameSize:detections.frameSize},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             if (this.cvAutoStepRunning) {
                 this.cvDetectionHistory.push({
                     timestamp: Date.now(),
@@ -423,12 +431,112 @@ export class Game extends Scene
                 this.events.once('postupdate', () => this.scene.pause());
             }
         } catch (err) {
-            console.error('[CV] Step error', err);
+            console.error('[CV-COLOR] error:', err);
             this.cvAutoStepRunning = false;
             if (this.cvStepText) this.cvStepText.setText('CV: Error - Press S');
         } finally {
             if (autoMode) this.waitingForCV = false;
         }
+    }
+
+    /**
+     * Capture a color-coded frame for CV detection.
+     * Each game object is rendered as a flat colored shape using its unique ID color.
+     * Uses forced render: save state → apply ID colors → render → capture → restore → render.
+     */
+    /**
+     * Build the color map once per game session and cache it.
+     * Colors cover all possible tube/ball/hand/button IDs so they never change between frames.
+     *
+     * ID ranges:
+     *   Tubes    0-13
+     *   Balls    100 + tubeId*10 + slotIndex  (max 100+13*10+7 = 237)
+     *   Hand     500  (kept > 237 to avoid collision with ball range)
+     *   Icon     501
+     *   Download 502
+     */
+    private ensureColorMap(): { colorMap: ColorMap; idToColor: Map<number, number> } {
+        if (this._colorMap && this._idToColor) {
+            return { colorMap: this._colorMap, idToColor: this._idToColor };
+        }
+        const allIds: number[] = [];
+        const tubeCount = Config.GAME_CONFIG.TUBE_COUNT;
+        const tubeCapacity = Config.GAME_CONFIG.TUBE_CAPACITY;
+        for (let t = 0; t < tubeCount; t++) allIds.push(t);
+        for (let t = 0; t < tubeCount; t++) {
+            for (let s = 0; s < tubeCapacity; s++) {
+                allIds.push(100 + t * 10 + s);
+            }
+        }
+        allIds.push(500, 501, 502); // hand, icon, download
+        const result = generateColorMap(allIds);
+        this._colorMap = result.colorMap;
+        this._idToColor = result.idToColor;
+        return result;
+    }
+
+    public captureColorCodedFrame(): { data: string; colorMap: ColorMap } {
+        const cam = this.cameras.main;
+
+        // Reuse the stable color map (same colors every frame)
+        const { colorMap, idToColor } = this.ensureColorMap();
+
+        // White background so near-black colors are visible
+        cam.setBackgroundColor('#FFFFFF');
+
+        // Apply ID mode to board (tubes + balls + hand)
+        const restoreBoard = this.board.applyIdRenderMode(idToColor);
+
+        // Apply ID mode to UI buttons (501=icon, 502=download)
+        this.iconBtn.setTintFill(idToColor.get(501) ?? 0x888888);
+        this.centerBtn.setTintFill(idToColor.get(502) ?? 0x888888);
+
+        // Hide non-tagged UI elements
+        const savedCvText = this.cvStepText?.visible;
+        const savedDebugText = this.debugText?.visible;
+        const savedDownloadText = this.centerDownloadText?.visible;
+        const savedVictoryPopup = this.victoryPopup?.visible;
+        const savedVictoryOverlay = this.victoryOverlay?.visible;
+        if (this.cvStepText) this.cvStepText.setVisible(false);
+        if (this.debugText) this.debugText.setVisible(false);
+        if (this.centerDownloadText) this.centerDownloadText.setVisible(false);
+        if (this.victoryPopup) this.victoryPopup.setVisible(false);
+        if (this.victoryOverlay) this.victoryOverlay.setVisible(false);
+
+        // Force render the ID-colored scene
+        const renderer = this.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+        renderer.preRender();
+        this.children.depthSort();
+        (this.cameras as any).render(renderer, this.children, 1);
+        renderer.postRender();
+
+        // Capture canvas
+        const canvas = this.game.canvas;
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+        const ctx = offscreen.getContext('2d')!;
+        ctx.drawImage(canvas, 0, 0);
+        const data = offscreen.toDataURL('image/png');
+
+        // Restore everything
+        cam.setBackgroundColor('rgba(0,0,0,0)');
+        restoreBoard();
+        this.iconBtn.clearTint();
+        this.centerBtn.clearTint();
+        if (this.cvStepText) this.cvStepText.setVisible(savedCvText!);
+        if (this.debugText) this.debugText.setVisible(savedDebugText!);
+        if (this.centerDownloadText) this.centerDownloadText.setVisible(savedDownloadText!);
+        if (this.victoryPopup) this.victoryPopup.setVisible(savedVictoryPopup!);
+        if (this.victoryOverlay) this.victoryOverlay.setVisible(savedVictoryOverlay!);
+
+        // Force render to restore normal view
+        renderer.preRender();
+        this.children.depthSort();
+        (this.cameras as any).render(renderer, this.children, 1);
+        renderer.postRender();
+
+        return { data, colorMap };
     }
 
     private updateDebugOverlay() {

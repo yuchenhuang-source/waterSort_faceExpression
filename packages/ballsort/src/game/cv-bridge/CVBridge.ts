@@ -5,6 +5,7 @@
  */
 
 import { EventBus } from '../EventBus';
+import type { ColorMap } from '../render/ObjectIdPipeline';
 
 const WS_URL = 'ws://localhost:8765';
 
@@ -116,7 +117,20 @@ export class CVBridge {
         return data;
     }
 
-    sendFrameAndWait(frameBase64: string): Promise<CVResponse> {
+    /**
+     * Capture a color-coded frame for CV detection by delegating to the Game scene.
+     * Each object is rendered as a flat colored shape with its unique ID color.
+     */
+    captureColorCodedFrame(): string {
+        const gameScene = this.game.scene.getScene('Game') as any;
+        if (!gameScene || typeof gameScene.captureColorCodedFrame !== 'function') {
+            console.warn('[CV-COLOR] Game scene not available for color-coded capture');
+            return '';
+        }
+        return gameScene.captureColorCodedFrame();
+    }
+
+    sendFrameAndWait(frameBase64: string, colorMap?: ColorMap): Promise<CVResponse> {
         return new Promise((resolve, reject) => {
             if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
                 reject(new Error('CV server not connected'));
@@ -138,7 +152,9 @@ export class CVBridge {
                 resolve(v);
             };
             this.pendingResolve = wrappedResolve;
-            this.ws.send(JSON.stringify({ frame: frameBase64 }));
+            const msg: Record<string, unknown> = { frame: frameBase64 };
+            if (colorMap) msg.colorMap = colorMap;
+            this.ws.send(JSON.stringify(msg));
         });
     }
 

@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { BallColor, Config } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
+import { encodeIdToColor } from '../render/ObjectIdPipeline';
 
 export class Ball extends Phaser.GameObjects.Container {
     // 光晕效果参数（优化性能：禁用光晕以提升到60fps）
@@ -65,6 +66,34 @@ export class Ball extends Phaser.GameObjects.Container {
         this.normalizeSizes();
 
         scene.add.existing(this);
+    }
+
+    /** Color-coded ID rendering: tintFill ballImage with ID color, hide everything else. Returns restore function. */
+    public applyIdRenderMode(id: number): () => void {
+        const saved = {
+            ballVis: this.ballImage.visible,
+            liquidVis: this.liquidSprite.visible,
+            candleVis: this.candleImage.visible,
+            arucoVis: this.arucoImage?.visible ?? false,
+            exprVis: this.ballExpressionSprite?.visible ?? false,
+            glowVis: this.glowSprites.map(g => g.visible),
+        };
+        this.ballImage.setTintFill(encodeIdToColor(id));
+        this.ballImage.setVisible(true);
+        this.liquidSprite.setVisible(false);
+        this.candleImage.setVisible(false);
+        if (this.arucoImage) this.arucoImage.setVisible(false);
+        if (this.ballExpressionSprite) this.ballExpressionSprite.setVisible(false);
+        this.glowSprites.forEach(g => g.setVisible(false));
+        return () => {
+            this.ballImage.clearTint();
+            this.ballImage.setVisible(saved.ballVis);
+            this.liquidSprite.setVisible(saved.liquidVis);
+            this.candleImage.setVisible(saved.candleVis);
+            if (this.arucoImage) this.arucoImage.setVisible(saved.arucoVis);
+            if (this.ballExpressionSprite) this.ballExpressionSprite.setVisible(saved.exprVis);
+            this.glowSprites.forEach((g, i) => g.setVisible(saved.glowVis[i]));
+        };
     }
 
     /** Phase 2: 设置 CV debug 模式（ArUco 替换球视觉） */

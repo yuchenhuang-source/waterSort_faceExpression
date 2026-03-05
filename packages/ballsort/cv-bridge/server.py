@@ -9,9 +9,9 @@ import os
 import sys
 from pathlib import Path
 
-# Add cv-bridge dir so we can import cv_processor
+# Add cv-bridge dir so we can import processors
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cv_processor import process_frame
+from color_cv_processor import process_color_coded_frame
 
 try:
     import websockets
@@ -30,12 +30,13 @@ clients: set = set()
 
 
 async def handle_game_message(websocket, message: dict) -> dict:
-    """Process frame from game, return response."""
+    """Process frame + colorMap from game, return response."""
     frame = message.get("frame")
     if not frame:
         return {"status": "error", "error": "missing frame"}
 
-    result = process_frame(frame)
+    color_map = message.get("colorMap") or {}
+    result = process_color_coded_frame(frame, color_map)
     return {"status": result.get("status", "ok"), "detections": result}
 
 

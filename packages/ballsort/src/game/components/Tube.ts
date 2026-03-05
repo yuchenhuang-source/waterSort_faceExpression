@@ -5,6 +5,7 @@ import { BallColor, Config } from '../constants/GameConstants';
 import { getLiquidColors, getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
+import { encodeIdToColor } from '../render/ObjectIdPipeline';
 
 export class Tube extends Phaser.GameObjects.Container {
     private tubeBodyImage: Phaser.GameObjects.Image;
@@ -295,6 +296,114 @@ export class Tube extends Phaser.GameObjects.Container {
 
         // 更新液体显示
         this.requestDrawLiquid();
+    }
+
+    /** Color-coded ID rendering: draw filled tube shape + liquid with random colors from idToColor map. Returns restore function. */
+    public applyIdRenderMode(idToColor: Map<number, number>): () => void {
+        const savedBallVis = this.balls.map(b => b.visible);
+        const saved = {
+            bodyVis: this.tubeBodyImage.visible,
+            mouthVis: this.tubeMouthImage.visible,
+            hlBodyVis: this.highlightBodyImage.visible,
+            hlBodyAlpha: this.highlightBodyImage.alpha,
+            hlMouthVis: this.highlightMouthImage.visible,
+            hlMouthAlpha: this.highlightMouthImage.alpha,
+            liquidContVis: this.liquidContainer.visible,
+            arucoVis: this.arucoImage?.visible ?? false,
+            candleVis: this.candleImage?.visible ?? false,
+            fireVis: this.fireSprite?.visible ?? false,
+        };
+        // 1. Tube body: use filled Graphics instead of tubeBodyImage (which has only outline)
+        const tubeColor = idToColor.get(this.id) ?? 0x888888;
+        const tubeFill = this.scene.add.graphics();
+        const maskW = this.currentWidth - 4;
+        const maskH = this.currentHeight - 4;
+        const radius = this.currentWidth / 2;
+        tubeFill.fillStyle(tubeColor, 1);
+        tubeFill.fillRoundedRect(-maskW / 2, -maskH / 2, maskW, maskH, { tl: 0, tr: 0, bl: radius, br: radius });
+        this.add(tubeFill);
+        this.sendToBack(tubeFill);
+        // 2. Liquid: draw per-ball colors from idToColor as local Graphics (above tubeFill in z-order)
+        const liquidFill = this.scene.add.graphics();
+        this.drawLiquidIdLocal(liquidFill, idToColor);
+        this.add(liquidFill);
+        this.tubeBodyImage.setVisible(false);
+        this.tubeMouthImage.setVisible(false);
+        this.highlightBodyImage.setVisible(false);
+        this.highlightMouthImage.setVisible(false);
+        this.liquidContainer.setVisible(false);
+        if (this.arucoImage) this.arucoImage.setVisible(false);
+        if (this.candleImage) this.candleImage.setVisible(false);
+        if (this.fireSprite) this.fireSprite.setVisible(false);
+        // 3. Balls: hide (replaced by liquidFill above)
+        this.balls.forEach(b => b.setVisible(false));
+
+        return () => {
+            tubeFill.destroy();
+            liquidFill.destroy();
+            this.balls.forEach((b, i) => b.setVisible(savedBallVis[i]));
+            this.tubeBodyImage.setVisible(saved.bodyVis);
+            this.tubeMouthImage.setVisible(saved.mouthVis);
+            this.highlightBodyImage.setVisible(saved.hlBodyVis);
+            this.highlightBodyImage.setAlpha(saved.hlBodyAlpha);
+            this.highlightMouthImage.setVisible(saved.hlMouthVis);
+            this.highlightMouthImage.setAlpha(saved.hlMouthAlpha);
+            this.liquidContainer.setVisible(saved.liquidContVis);
+            if (this.arucoImage) this.arucoImage.setVisible(saved.arucoVis);
+            if (this.candleImage) this.candleImage.setVisible(saved.candleVis);
+            if (this.fireSprite) this.fireSprite.setVisible(saved.fireVis);
+        };
+    }
+
+    /**
+     * Draw liquid blocks with ball colors (from idToColor) into a LOCAL-coordinate Graphics (a child of this Tube).
+     * Used by applyIdRenderMode so the liquid renders ABOVE tubeFill in z-order.
+     */
+    private drawLiquidIdLocal(targetGraphics: Phaser.GameObjects.Graphics, idToColor: Map<number, number>): void {
+        const unitHeight = this.getUnitHeight();
+        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const width = this.currentWidth;
+        let ballsForLiquid = (this._topBallFloating && this.balls.length > 0) ? this.balls.slice(0, -1) : this.balls;
+        if (this.addingBallColor !== null && this.balls.length > 0) ballsForLiquid = this.balls.slice(0, -1);
+        let currentY = bottomY;
+        for (let i = 0; i < ballsForLiquid.length; i++) {
+            const ballId = 100 + this.id * 10 + i;
+            const color = idToColor.get(ballId) ?? 0x888888;
+            targetGraphics.fillStyle(color, 1);
+            targetGraphics.fillRect(-width / 2, currentY - unitHeight, width, unitHeight + 2);
+            currentY -= unitHeight;
+        }
+        if (this.addingBallColor !== null && this.balls.length > 0 && this.addingBallHeight > 0) {
+            const topBallIdx = this.balls.length - 1;
+            const ballId = 100 + this.id * 10 + topBallIdx;
+            const color = idToColor.get(ballId) ?? 0x888888;
+            targetGraphics.fillStyle(color, 1);
+            targetGraphics.fillRect(-width / 2, currentY - this.addingBallHeight, width, this.addingBallHeight + 2);
+        }
+    }
+
+    /** Draw liquid blocks with ball IDs for color-coded CV detection (world-coord, for external use). */
+    public drawLiquidBlocksToIdMode(targetGraphics: Phaser.GameObjects.Graphics): void {
+        const ox = this.x;
+        const oy = this.y;
+        const unitHeight = this.getUnitHeight();
+        const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
+        const width = this.currentWidth;
+        let ballsForLiquid = (this._topBallFloating && this.balls.length > 0) ? this.balls.slice(0, -1) : this.balls;
+        if (this.addingBallColor !== null && this.balls.length > 0) ballsForLiquid = this.balls.slice(0, -1);
+        let currentY = bottomY;
+        for (let i = 0; i < ballsForLiquid.length; i++) {
+            const ballId = 100 + this.id * 10 + i;
+            targetGraphics.fillStyle(encodeIdToColor(ballId), 1);
+            targetGraphics.fillRect(ox + (-width / 2), oy + (currentY - unitHeight), width, unitHeight + 2);
+            currentY -= unitHeight;
+        }
+        if (this.addingBallColor !== null && this.balls.length > 0 && this.addingBallHeight > 0) {
+            const topBallIdx = this.balls.length - 1;
+            const ballId = 100 + this.id * 10 + topBallIdx;
+            targetGraphics.fillStyle(encodeIdToColor(ballId), 1);
+            targetGraphics.fillRect(ox + (-width / 2), oy + (currentY - this.addingBallHeight), width, this.addingBallHeight + 2);
+        }
     }
 
     /** Phase 2: 设置 CV debug 模式（ArUco 替换试管和球视觉） */

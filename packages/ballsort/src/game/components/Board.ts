@@ -7,6 +7,7 @@ import { CV_MODE_CHANGED, getCVBridge } from '../cv-bridge/CVBridge';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
+import { encodeIdToColor } from '../render/ObjectIdPipeline';
 
 /**
  * 表示一个可能的移动
@@ -93,6 +94,56 @@ export class Board extends Phaser.GameObjects.Container {
         this.setCVDebugMode(enabled);
         this.refreshLayout();  // 方案4：切换 CV 模式时重新布局（增大间距）
     };
+
+    /**
+     * Returns all object IDs currently rendered on the board (tubes + actual balls + hand).
+     * Used by Game.ts to generate a complete color map before the ID capture pass.
+     */
+    public getColorCodeObjectIds(): number[] {
+        const ids: number[] = [];
+        for (const tube of this.tubes) {
+            ids.push(tube.id);
+            // Only include balls actually present (not empty slots)
+            const ballCount = tube.balls.length;
+            for (let i = 0; i < ballCount; i++) {
+                ids.push(100 + tube.id * 10 + i);
+            }
+        }
+        if (this.hand) ids.push(200);
+        return ids;
+    }
+
+    /** Color-coded ID rendering using provided random color map. Returns restore function. */
+    public applyIdRenderMode(idToColor: Map<number, number>): () => void {
+        const savedLiquidVis = this.boardLiquidGraphics?.visible ?? false;
+        // Hide boardLiquidGraphics; each tube draws its own local liquid+ID Graphics
+        if (this.boardLiquidGraphics) this.boardLiquidGraphics.setVisible(false);
+
+        let handRestore: (() => void) | null = null;
+        if (this.hand) {
+            const savedHandVis = this.hand.visible;
+            const handColor = idToColor.get(500); // hand ID is 500, above ball range (100-237)
+            if (handColor !== undefined) {
+                this.hand.setTintFill(handColor);
+                this.hand.setVisible(true);
+            }
+            handRestore = () => {
+                this.hand!.clearTint();
+                this.hand!.setVisible(savedHandVis);
+            };
+        }
+
+        const tubeRestores = this.tubes.map(tube => tube.applyIdRenderMode(idToColor));
+
+        return () => {
+            if (this.boardLiquidGraphics) {
+                this.boardLiquidGraphics.setVisible(savedLiquidVis);
+                this.requestLiquidRedraw();
+            }
+            handRestore?.();
+            tubeRestores.forEach(r => r());
+        };
+    }
 
     /** Phase 2: 设置 CV debug 模式（ArUco 替换 sprite） */
     public setCVDebugMode(enabled: boolean): void {
