@@ -7,6 +7,17 @@ const detectionsEl = document.getElementById('detections');
 
 let ws = null;
 let frameCount = 0;
+let overlayVisible = true;
+
+const toggleBtn = document.getElementById('toggle-overlay');
+if (toggleBtn) {
+  toggleBtn.addEventListener('click', () => {
+    overlayVisible = !overlayVisible;
+    overlayEl.style.display = overlayVisible ? '' : 'none';
+    toggleBtn.textContent = overlayVisible ? '隐藏检测框' : '显示检测框';
+    toggleBtn.classList.toggle('inactive', !overlayVisible);
+  });
+}
 
 function setStatus(connected) {
   statusEl.textContent = connected ? 'Connected' : 'Disconnected';
@@ -34,13 +45,10 @@ function connect() {
         const buttons = detections.buttons || [];
         const tubeIds = tubes.map(t => t.id).join(',');
         const ballIds = balls.map(b => b.id).join(',');
-        console.log('[CV-UI] frame_processed frameLen=' + (frame?.length || 0) + ' hasFrame=' + !!frame + ' frameSize=' + JSON.stringify(detections.frameSize) + ' detected tubes=' + tubeIds + ' balls=' + ballIds + ' hand=' + !!hand + ' buttons=' + buttons.map(b=>b.label).join(','));
         if (frame) {
           const src = frame.startsWith('data:') ? frame : 'data:image/jpeg;base64,' + frame;
-          frameEl.onerror = () => console.error('[CV-UI] img onerror - frame failed to load');
           frameEl.src = src;
           frameEl.onload = () => {
-            console.log('[CV-UI] img onload ok', frameEl.naturalWidth, 'x', frameEl.naturalHeight);
             overlayEl.onload = () => {
               // Now matching visual size with CSS scaling
               overlayEl.style.width = frameEl.clientWidth + 'px';
@@ -57,9 +65,6 @@ function connect() {
             overlayEl.style.height = frameEl.clientHeight + 'px';
             // coordScale: Python returns coords in original game space; canvas is in downsampled space
             const coordScale = detections.frameSize?.coordScale ?? 1;
-            // #region agent log
-            fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'97ae77'},body:JSON.stringify({sessionId:'97ae77',location:'app.js:overlay',message:'overlay positioning',data:{coordScale,canvasLogical:overlayEl.width+'x'+overlayEl.height,imgClientWH:frameEl.clientWidth+'x'+frameEl.clientHeight,imgOffsetLT:frameEl.offsetLeft+','+frameEl.offsetTop,sampleTube:tubes[0]??null},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
             const s = 1 / coordScale; // factor to convert game coords -> canvas coords
             const ctx = overlayEl.getContext('2d');
             ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);

@@ -13,10 +13,15 @@
       <div class="status" id="status">Disconnected</div>
     </header>
     <main>
-      <div class="game-simulator-frame">
-        <div class="frame-container">
-          <img id="frame" alt="Latest frame from game" />
-          <canvas id="overlay"></canvas>
+      <div class="frame-panel">
+        <div class="frame-toolbar">
+          <button id="toggle-overlay">隐藏检测框</button>
+        </div>
+        <div class="game-simulator-frame">
+          <div class="frame-container">
+            <img id="frame" alt="Latest frame from game" />
+            <canvas id="overlay"></canvas>
+          </div>
         </div>
       </div>
       <aside>

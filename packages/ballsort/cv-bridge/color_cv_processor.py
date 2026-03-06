@@ -70,17 +70,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
         result["error"] = "colorMap is empty or unparseable"
         return result
 
-    import json as _json
-    _log_path = "/Users/yuchenhuang/Downloads/playables/ballsort/ballsort-multi--液体球效果/.cursor/debug-97ae77.log"
-    def _log(msg, data): 
-        try:
-            with open(_log_path, "a") as _f:
-                _f.write(_json.dumps({"sessionId":"97ae77","location":"color_cv_processor.py","message":msg,"data":data,"timestamp":int(time.time()*1000)}) + "\n")
-        except Exception: pass
-
     try:
-        # [agent log] stage: decode + PIL
-        t_decode = time.perf_counter()
         b64 = frame_base64.split(",")[-1] if "," in frame_base64 else frame_base64
         img_bytes = base64.b64decode(b64)
         img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
@@ -90,8 +80,6 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
         # Original game resolution is 1080×1920 (portrait) or 1920×1080 (landscape)
         coord_scale = round(1080 / w) if w < 800 else 1
         result["frameSize"] = {"width": w, "height": h, "coordScale": coord_scale}
-        t_decode_ms = round((time.perf_counter() - t_decode) * 1000, 2)
-        _log("H-D: decode+PIL timing post-fix", {"stage":"decode_pil","ms":t_decode_ms,"w":w,"h":h,"coord_scale":coord_scale,"runId":"post-fix"})
 
         rgb = pixels[:, :, :3].astype(np.int32)
         alpha = pixels[:, :, 3]
@@ -100,9 +88,6 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
         opaque = alpha > 128
         non_white = np.any(rgb < 250, axis=2)
         valid_mask = opaque & non_white
-
-        valid_count = int(np.sum(valid_mask))
-        _log("H-A/H-B: valid pixels post-fix", {"stage":"valid_mask","valid_pixels":valid_count,"total_pixels":w*h,"runId":"post-fix"})
 
         if not np.any(valid_mask):
             result["status"] = "ok"
@@ -118,8 +103,6 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
         flat_rgb = rgb[ys_all, xs_all]  # (N, 3)
         N, K = len(flat_rgb), len(tc_rgb)
 
-        # [agent log] stage: distance matrix (BLAS matmul version)
-        t_dist = time.perf_counter()
         # ||a-b||^2 = ||a||^2 + ||b||^2 - 2*(a·b) — uses Apple Accelerate BLAS via @
         a = flat_rgb.astype(np.float32)
         b = tc_rgb.astype(np.float32)
@@ -129,13 +112,9 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
         dist_sq = a_sq + b_sq.T - 2.0 * ab           # (N, K)
         nearest_idx = dist_sq.argmin(axis=1)          # (N,)
         nearest_dist = dist_sq[np.arange(N), nearest_idx]
-        t_dist_ms = round((time.perf_counter() - t_dist) * 1000, 2)
-        _log("H-A post-fix: BLAS dist timing", {"stage":"dist_matrix","ms":t_dist_ms,"N":N,"K":K,"runId":"post-fix","hypothesisId":"H-A"})
 
         accepted = nearest_dist < MATCH_DIST_THRESH_SQ
 
-        # [agent log] stage: vectorized grouping (bincount)
-        t_group = time.perf_counter()
         # Fully vectorized centroid computation using np.bincount
         tc_ids_arr = np.array(tc_ids, dtype=np.int32)
         acc_ids = tc_ids_arr[nearest_idx[accepted]]   # (M,) object ID per accepted pixel
@@ -151,8 +130,6 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
                 cx_scaled = int(sum_xs[i] / counts[i] * coord_scale)
                 cy_scaled = int(sum_ys[i] / counts[i] * coord_scale)
                 obj_centroids[int(uid)] = (cx_scaled, cy_scaled, int(counts[i]))
-        t_group_ms = round((time.perf_counter() - t_group) * 1000, 2)
-        _log("H-B post-fix: vectorized grouping timing", {"stage":"group_bincount","ms":t_group_ms,"accepted":int(np.sum(accepted)),"unique_ids":len(unique_ids),"runId":"post-fix","hypothesisId":"H-B"})
 
         hand = None
         detected_ids = []
@@ -194,8 +171,6 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
 
         result["detectedIds"] = sorted(detected_ids)
         result["status"] = "ok"
-        # [agent log] post-fix total
-        _log("post-fix total time", {"stage":"total","ms":round((time.perf_counter()-t0)*1000,2),"runId":"post-fix","tubes":len(result["tubes"]),"balls":len(result["balls"])})
 
         print(
             f"[CV] tubes={len(result['tubes'])} "

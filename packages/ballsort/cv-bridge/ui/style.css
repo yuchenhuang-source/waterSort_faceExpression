@@ -49,10 +49,42 @@ main {
   flex-wrap: wrap;
 }
 
-.game-simulator-frame {
+.frame-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   flex: 1;
   min-width: 200px;
   max-width: 360px;
+}
+
+.frame-toolbar {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.frame-toolbar button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.frame-toolbar button:hover {
+  background: #3a3a3a;
+  border-color: #888;
+}
+
+.frame-toolbar button.inactive {
+  color: #888;
+  border-color: #444;
+}
+
+.game-simulator-frame {
   background: #000;
   border-radius: 8px;
   padding: 10px;
