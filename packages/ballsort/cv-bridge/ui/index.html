@@ -32,6 +32,11 @@
         <section>
           <h2>Detections</h2>
           <p class="hint">Use <code>?cv=1&auto=1</code> and click <strong>播放</strong> in the game to start recording, or press <strong>S</strong> for manual step.</p>
+          <div class="diff-params">
+            <label>保留帧数 a: <input id="diff-retain-frames" type="number" min="1" value="5" title="Delta div 连续 a 帧为 0 后移除" /></label>
+            <label>POS: <input id="threshold-pos" type="number" min="0" step="0.5" value="2" title="position distance 阈值" /></label>
+            <label>AREA: <input id="threshold-area" type="number" min="0" step="1" value="10" title="area 阈值" /></label>
+          </div>
           <div id="detection-summary" class="detection-summary" role="status" aria-live="polite">-</div>
           <div id="detection-list" class="detection-list" aria-live="polite"></div>
           <pre id="detections">Waiting for frames...</pre>

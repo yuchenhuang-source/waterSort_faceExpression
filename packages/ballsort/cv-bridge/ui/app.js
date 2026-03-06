@@ -8,6 +8,8 @@ const detectionsEl = document.getElementById('detections');
 let ws = null;
 let frameCount = 0;
 let overlayVisible = true;
+// Sticky frame diffs: { id: { label, dx, dy, dist, dArea, framesAtZero } }
+let trackedDiffs = {};
 
 const toggleBtn = document.getElementById('toggle-overlay');
 if (toggleBtn) {
@@ -133,21 +135,43 @@ function connect() {
         const listEl = document.getElementById('detection-list');
         if (listEl) {
           listEl.innerHTML = '';
-          const frameDiffs = detections.frameDiffs || [];
-          if (frameDiffs.length > 0) {
+          const rawDiffs = detections.frameDiffs || [];
+          const a = Math.max(1, parseInt(document.getElementById('diff-retain-frames')?.value || '5', 10) || 5);
+          const thresholdPos = Math.max(0, parseFloat(document.getElementById('threshold-pos')?.value || '2') || 2);
+          const thresholdArea = Math.max(0, parseFloat(document.getElementById('threshold-area')?.value || '10') || 10);
+          const significantDiffs = rawDiffs.filter(d => {
+            const dist = d.dist ?? Math.sqrt((d.dx ?? 0) ** 2 + (d.dy ?? 0) ** 2);
+            return dist >= thresholdPos || Math.abs(d.dArea ?? 0) >= thresholdArea;
+          });
+          const significantIds = new Set(significantDiffs.map(d => d.id));
+          significantDiffs.forEach(d => {
+            trackedDiffs[d.id] = { ...d, framesAtZero: 0 };
+          });
+          Object.keys(trackedDiffs).map(Number).forEach(id => {
+            if (!significantIds.has(id)) {
+              trackedDiffs[id].framesAtZero = (trackedDiffs[id].framesAtZero || 0) + 1;
+              if (trackedDiffs[id].framesAtZero >= a) delete trackedDiffs[id];
+            }
+          });
+          const entries = Object.entries(trackedDiffs);
+          if (entries.length > 0) {
             const group = document.createElement('div');
             group.className = 'detection-group';
             const h3 = document.createElement('h3');
-            h3.textContent = `Frame Diffs (非零) (${frameDiffs.length})`;
+            h3.textContent = `Frame Diffs (a=${a} pos≥${thresholdPos} area≥${thresholdArea}) (${entries.length})`;
             group.appendChild(h3);
-            frameDiffs.forEach(d => {
+            entries.forEach(([, d]) => {
               const item = document.createElement('span');
               item.className = 'detection-capsule';
-              item.style.background = '#6a0';
+              item.style.background = d.framesAtZero === 0 ? '#6a0' : '#555';
               item.style.color = '#fff';
               const parts = [];
-              if (d.dx !== 0 || d.dy !== 0) parts.push(`Δpos(${d.dx},${d.dy})`);
-              if (d.dArea !== 0) parts.push(`Δarea=${d.dArea}`);
+              if (d.framesAtZero === 0) {
+                if (d.dist != null && d.dist !== 0) parts.push(`Δdist=${d.dist}`);
+                else if (d.dx !== 0 || d.dy !== 0) parts.push(`Δpos(${d.dx},${d.dy})`);
+                if (d.dArea != null && d.dArea !== 0) parts.push(`Δarea=${d.dArea}`);
+              }
+              if (parts.length === 0) parts.push('0');
               item.textContent = `${d.label ?? 'id' + d.id}: ${parts.join(' ')}`;
               group.appendChild(item);
             });
@@ -214,7 +238,7 @@ function connect() {
             });
             listEl.appendChild(group);
           }
-          if (tubes.length === 0 && balls.length === 0 && !hand && buttons.length === 0 && frameDiffs.length === 0) {
+          if (tubes.length === 0 && balls.length === 0 && !hand && buttons.length === 0 && entries.length === 0) {
             listEl.textContent = '-';
           }
         }

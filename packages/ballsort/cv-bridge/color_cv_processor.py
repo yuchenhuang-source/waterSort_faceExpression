@@ -14,6 +14,7 @@ ID ranges (from game):
 """
 import base64
 import io
+import math
 import time
 from typing import Any
 
@@ -70,12 +71,14 @@ def _add_frame_diffs(result: dict[str, Any]) -> None:
         dx = curr["x"] - prev["x"] if prev else 0.0
         dy = curr["y"] - prev["y"] if prev else 0.0
         d_area = curr["area"] - prev["area"] if prev else 0.0
+        dist = math.sqrt(dx * dx + dy * dy) if prev else 0.0
         if prev is not None and (dx != 0 or dy != 0 or d_area != 0):
             diffs.append({
                 "id": oid,
                 "label": _obj_label(oid),
                 "dx": round(dx, 2),
                 "dy": round(dy, 2),
+                "dist": round(dist, 2),
                 "dArea": round(d_area, 2),
             })
         _prev_objects[oid] = curr.copy()
