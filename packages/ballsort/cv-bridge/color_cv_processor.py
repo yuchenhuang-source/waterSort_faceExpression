@@ -28,6 +28,60 @@ except ImportError:
 MATCH_DIST_THRESH_SQ = 25 ** 2   # max squared Euclidean distance to accept a color match
 MIN_PIXELS = 8                    # ignore clusters smaller than this (anti-aliasing noise)
 
+# Per-object state from previous frame: id -> {x, y, area} for frame-diff computation
+_prev_objects: dict[int, dict[str, float]] = {}
+
+
+def _obj_label(obj_id: int) -> str:
+    """Return display label for object id."""
+    if obj_id < 100:
+        return f"T{obj_id}"
+    if obj_id < 500:
+        tube_id, slot = divmod(obj_id - 100, 10)
+        return f"B{obj_id}[{tube_id}:{slot}]"
+    if obj_id == 500:
+        return "HAND"
+    if obj_id == 501:
+        return "icon"
+    if obj_id == 502:
+        return "download"
+    return f"id{obj_id}"
+
+
+def _add_frame_diffs(result: dict[str, Any]) -> None:
+    """
+    Compare current frame objects with previous frame. Add frameDiffs with all non-zero
+    position/area changes. Update _prev_objects for next frame.
+    """
+    current: dict[int, dict[str, float]] = {}
+    for obj in result.get("tubes", []) + result.get("balls", []) + result.get("buttons", []):
+        b = obj.get("bbox") or {}
+        area = (b.get("w", 0) or 0) * (b.get("h", 0) or 0)
+        current[obj["id"]] = {"x": float(obj.get("x", 0)), "y": float(obj.get("y", 0)), "area": float(area)}
+    if result.get("hand"):
+        h = result["hand"]
+        b = h.get("bbox") or {}
+        area = (b.get("w", 0) or 0) * (b.get("h", 0) or 0)
+        current[h["id"]] = {"x": float(h.get("x", 0)), "y": float(h.get("y", 0)), "area": float(area)}
+
+    diffs: list[dict[str, Any]] = []
+    for oid, curr in current.items():
+        prev = _prev_objects.get(oid)
+        dx = curr["x"] - prev["x"] if prev else 0.0
+        dy = curr["y"] - prev["y"] if prev else 0.0
+        d_area = curr["area"] - prev["area"] if prev else 0.0
+        if prev is not None and (dx != 0 or dy != 0 or d_area != 0):
+            diffs.append({
+                "id": oid,
+                "label": _obj_label(oid),
+                "dx": round(dx, 2),
+                "dy": round(dy, 2),
+                "dArea": round(d_area, 2),
+            })
+        _prev_objects[oid] = curr.copy()
+
+    result["frameDiffs"] = diffs
+
 
 def _parse_color_map(color_map: dict) -> list[tuple[int, int, int, int]]:
     """
@@ -178,6 +232,7 @@ def process_pixel_data(pixel_frame: dict, color_map: dict | None = None, active_
 
         result["detectedIds"] = sorted(detected_ids)
         result["status"] = "ok"
+        _add_frame_diffs(result)
 
         print(
             f"[CV-PIXELS] tubes={len(result['tubes'])} "
@@ -242,6 +297,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
 
         if not np.any(valid_mask):
             result["status"] = "ok"
+            _add_frame_diffs(result)
             result["processingMs"] = round((time.perf_counter() - t0) * 1000, 2)
             return result
 
@@ -329,6 +385,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
 
         result["detectedIds"] = sorted(detected_ids)
         result["status"] = "ok"
+        _add_frame_diffs(result)
 
         print(
             f"[CV] tubes={len(result['tubes'])} "

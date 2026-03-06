@@ -133,6 +133,26 @@ function connect() {
         const listEl = document.getElementById('detection-list');
         if (listEl) {
           listEl.innerHTML = '';
+          const frameDiffs = detections.frameDiffs || [];
+          if (frameDiffs.length > 0) {
+            const group = document.createElement('div');
+            group.className = 'detection-group';
+            const h3 = document.createElement('h3');
+            h3.textContent = `Frame Diffs (非零) (${frameDiffs.length})`;
+            group.appendChild(h3);
+            frameDiffs.forEach(d => {
+              const item = document.createElement('span');
+              item.className = 'detection-capsule';
+              item.style.background = '#6a0';
+              item.style.color = '#fff';
+              const parts = [];
+              if (d.dx !== 0 || d.dy !== 0) parts.push(`Δpos(${d.dx},${d.dy})`);
+              if (d.dArea !== 0) parts.push(`Δarea=${d.dArea}`);
+              item.textContent = `${d.label ?? 'id' + d.id}: ${parts.join(' ')}`;
+              group.appendChild(item);
+            });
+            listEl.appendChild(group);
+          }
           if (tubes.length > 0) {
             const group = document.createElement('div');
             group.className = 'detection-group';
@@ -194,7 +214,7 @@ function connect() {
             });
             listEl.appendChild(group);
           }
-          if (tubes.length === 0 && balls.length === 0 && !hand && buttons.length === 0) {
+          if (tubes.length === 0 && balls.length === 0 && !hand && buttons.length === 0 && frameDiffs.length === 0) {
             listEl.textContent = '-';
           }
         }
