@@ -11,6 +11,31 @@ let overlayVisible = true;
 // Sticky frame diffs: { id: { label, dx, dy, dist, dArea, framesAtZero } }
 let trackedDiffs = {};
 
+function formatMoveDesc(dx, dy) {
+  if (dx === 0 && dy === 0) return '—';
+  const dist = Math.sqrt(dx * dx + dy * dy).toFixed(1);
+  const left = dx < 0;
+  const right = dx > 0;
+  const up = dy < 0;
+  const down = dy > 0;
+  let dir = '';
+  if (up && left) dir = '左上移';
+  else if (up && right) dir = '右上移';
+  else if (down && left) dir = '左下移';
+  else if (down && right) dir = '右下移';
+  else if (left) dir = '左移';
+  else if (right) dir = '右移';
+  else if (up) dir = '上移';
+  else if (down) dir = '下移';
+  return `${dir} ${dist}（距离）`;
+}
+
+function formatAreaDesc(dArea, prevArea) {
+  if (dArea === 0 || prevArea == null || prevArea <= 0) return '—';
+  const pct = Math.abs((dArea / prevArea) * 100).toFixed(1);
+  return dArea > 0 ? `变大 ${pct}%` : `变小 ${pct}%`;
+}
+
 const toggleBtn = document.getElementById('toggle-overlay');
 if (toggleBtn) {
   toggleBtn.addEventListener('click', () => {
@@ -136,9 +161,16 @@ function connect() {
         if (listEl) {
           listEl.innerHTML = '';
           const rawDiffs = detections.frameDiffs || [];
+          const idToArea = new Map();
+          [...(tubes || []), ...(balls || []), ...(buttons || []), ...(hand ? [hand] : [])].forEach(o => {
+            const b = o.bbox;
+            if (b && (b.w || b.h)) idToArea.set(o.id, (b.w || 0) * (b.h || 0));
+          });
           const a = Math.max(1, parseInt(document.getElementById('diff-retain-frames')?.value || '5', 10) || 5);
-          const thresholdPos = Math.max(0, parseFloat(document.getElementById('threshold-pos')?.value || '2') || 2);
-          const thresholdArea = Math.max(0, parseFloat(document.getElementById('threshold-area')?.value || '10') || 10);
+          const posInput = document.getElementById('threshold-pos');
+          const areaInput = document.getElementById('threshold-area');
+          const thresholdPos = (v => (Number.isNaN(v) || v < 0 ? 2 : v))(parseFloat(posInput?.value ?? '2'));
+          const thresholdArea = (v => (Number.isNaN(v) || v < 0 ? 10 : v))(parseFloat(areaInput?.value ?? '10'));
           const significantDiffs = rawDiffs.filter(d => {
             const dist = d.dist ?? Math.sqrt((d.dx ?? 0) ** 2 + (d.dy ?? 0) ** 2);
             return dist >= thresholdPos || Math.abs(d.dArea ?? 0) >= thresholdArea;
@@ -163,13 +195,22 @@ function connect() {
             entries.forEach(([, d]) => {
               const row = document.createElement('div');
               row.className = 'detection-capsule detection-capsule-diff';
-              row.style.background = d.framesAtZero === 0 ? '#6a0' : '#555';
               row.style.color = '#fff';
-              const distVal = d.framesAtZero === 0 ? (d.dist ?? Math.sqrt((d.dx ?? 0) ** 2 + (d.dy ?? 0) ** 2)) : 0;
+              const dxVal = d.framesAtZero === 0 ? (d.dx ?? 0) : 0;
+              const dyVal = d.framesAtZero === 0 ? (d.dy ?? 0) : 0;
               const areaVal = d.framesAtZero === 0 ? (d.dArea ?? 0) : 0;
-              const distStr = Number(distVal).toFixed(1);
-              const areaStr = Number(areaVal).toFixed(0);
-              row.innerHTML = `<span class="diff-label">${d.label ?? 'id' + d.id}</span><span class="diff-cell">Δdist=<span class="diff-val">${distStr}</span></span><span class="diff-cell">Δarea=<span class="diff-val">${areaStr}</span></span>`;
+              let prevArea = d.prevArea;
+              if (prevArea == null || prevArea <= 0) {
+                const currArea = idToArea.get(d.id);
+                if (currArea != null && currArea > 0 && areaVal !== 0) prevArea = currArea - areaVal;
+              }
+              prevArea = prevArea ?? 0;
+              const dist = d.dist ?? Math.sqrt(dxVal * dxVal + dyVal * dyVal);
+              const moveStr = formatMoveDesc(dxVal, dyVal);
+              const areaStr = formatAreaDesc(areaVal, prevArea);
+              const moveCls = (dxVal !== 0 || dyVal !== 0) && dist >= thresholdPos ? ' diff-val-changed' : '';
+              const areaCls = areaVal !== 0 && Math.abs(areaVal) >= thresholdArea ? ' diff-val-changed' : '';
+              row.innerHTML = `<span class="diff-label">${d.label ?? 'id' + d.id}</span><span class="diff-cell${moveCls}">${moveStr}</span><span class="diff-cell${areaCls}">${areaStr}</span>`;
               group.appendChild(row);
             });
             listEl.appendChild(group);

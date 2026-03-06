@@ -222,10 +222,13 @@ section h2 {
 
 .detection-capsule-diff {
   display: grid;
-  grid-template-columns: 7em 6em 6em;
+  grid-template-columns: 7em 11em 8em;
   gap: 0.25rem;
   align-items: center;
   font-variant-numeric: tabular-nums;
+  background: #555;
+  min-width: 26em;
+  width: 26em;
 }
 
 .detection-capsule-diff .diff-label {
@@ -235,12 +238,21 @@ section h2 {
 
 .detection-capsule-diff .diff-cell {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  background: #555;
+  min-width: 0;
+}
+
+.detection-capsule-diff .diff-cell.diff-val-changed {
+  background: #6a0;
 }
 
 .detection-capsule-diff .diff-val {
   text-align: right;
-  min-width: 3.5em;
+  min-width: 3em;
   margin-left: auto;
 }
 

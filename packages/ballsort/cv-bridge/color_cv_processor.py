@@ -73,6 +73,7 @@ def _add_frame_diffs(result: dict[str, Any]) -> None:
         d_area = curr["area"] - prev["area"] if prev else 0.0
         dist = math.sqrt(dx * dx + dy * dy) if prev else 0.0
         if prev is not None and (dx != 0 or dy != 0 or d_area != 0):
+            prev_area = prev["area"]
             diffs.append({
                 "id": oid,
                 "label": _obj_label(oid),
@@ -80,6 +81,7 @@ def _add_frame_diffs(result: dict[str, Any]) -> None:
                 "dy": round(dy, 2),
                 "dist": round(dist, 2),
                 "dArea": round(d_area, 2),
+                "prevArea": int(prev_area),
             })
         _prev_objects[oid] = curr.copy()
 
