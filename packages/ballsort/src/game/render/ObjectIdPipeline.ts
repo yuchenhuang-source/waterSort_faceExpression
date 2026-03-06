@@ -31,7 +31,7 @@ export const COLOR_GRID_STEP = 34;
  * any blend > 17.6% in any changing channel is rejected.
  * The contaminated region [0.20, 0.80] has zero slip-through.
  */
-export const COLOR_GRID_TOL = 6;
+export const COLOR_GRID_TOL = 0;
 /** Near-white rejection: skip colors where ALL channels exceed this. */
 const WHITE_THRESH = 215;
 /** Euclidean distance² threshold for initial nearest-color snap. */
