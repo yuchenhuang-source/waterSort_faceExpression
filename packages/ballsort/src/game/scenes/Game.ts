@@ -10,7 +10,7 @@ import { getCachedPuzzle } from '../../utils/puzzleCache';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 import { isCVModeEnabled, getCVBridge, destroyCVBridge, CV_MODE_CHANGED } from '../cv-bridge/CVBridge';
-import { generateColorMap, ColorMap } from '../render/ObjectIdPipeline';
+import { generateColorMap, extractValidPixels, ColorMap } from '../render/ObjectIdPipeline';
 import JSZip from 'jszip';
 import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from '../cvRecordEvents';
 
@@ -509,87 +509,11 @@ export class Game extends Scene
         (this.cameras as any).render(renderer, this.children, 1);
         renderer.postRender();
 
-        // Capture canvas — downsample 4x, then extract only non-transparent pixels.
-        // imageSmoothingEnabled = false: use nearest-neighbor scaling so drawImage
-        // never mixes colors from adjacent regions (eliminates interpolation blending).
-        const CV_DOWNSAMPLE = 4;
-        const canvas = this.game.canvas;
-        const w = Math.round(canvas.width / CV_DOWNSAMPLE);
-        const h = Math.round(canvas.height / CV_DOWNSAMPLE);
-        const offscreen = document.createElement('canvas');
-        offscreen.width = w;
-        offscreen.height = h;
-        const ctx = offscreen.getContext('2d')!;
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(canvas, 0, 0, w, h);
-
-        const imageData = ctx.getImageData(0, 0, w, h).data;
-
-        // Build a flat lookup table of known exact colors from the colorMap so we can
-        // snap every pixel to its nearest mapped color.  This eliminates the second
-        // source of blending: WebGL sub-pixel anti-aliasing, which produces edge pixels
-        // whose RGB is a mix of two object colors (or an object color mixed with the
-        // transparent background).  After snapping, every pixel sent to CV is one of
-        // the exact colors that appears in colorMap — no in-between values.
-        const snapR: number[] = [];
-        const snapG: number[] = [];
-        const snapB: number[] = [];
-        for (const hex of Object.keys(colorMap)) {
-            snapR.push(parseInt(hex.slice(0, 2), 16));
-            snapG.push(parseInt(hex.slice(2, 4), 16));
-            snapB.push(parseInt(hex.slice(4, 6), 16));
-        }
-        const snapLen = snapR.length;
-        // Max squared distance a pixel may be from its nearest mapped color before
-        // being discarded as a boundary artifact.  Colors are guaranteed ≥40 apart,
-        // so a threshold of 35² keeps only pixels that unambiguously belong to one color.
-        const MAX_DIST_SQ = 35 * 35;
-
-        // Pack each non-transparent pixel as 7 bytes: x_lo,x_hi, y_lo,y_hi, r,g,b
-        // This is ~7x smaller than JSON [[x,y,r,g,b],...] and stays well under websockets 1MB limit
-        const packedBuf = new Uint8Array(w * h * 7);
-        let pixelCount = 0;
-        for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-                const i = (y * w + x) * 4;
-                // Require high opacity (≥200) so half-transparent edge pixels are dropped
-                // before we even attempt color snapping.
-                if (imageData[i + 3] < 200) continue;
-
-                const pr = imageData[i];
-                const pg = imageData[i + 1];
-                const pb = imageData[i + 2];
-
-                // Snap to nearest exact color; discard if too far from every known color.
-                let bestDist = Infinity;
-                let si = 0;
-                for (let k = 0; k < snapLen; k++) {
-                    const dr = pr - snapR[k];
-                    const dg = pg - snapG[k];
-                    const db = pb - snapB[k];
-                    const d = dr * dr + dg * dg + db * db;
-                    if (d < bestDist) { bestDist = d; si = k; }
-                }
-                if (bestDist > MAX_DIST_SQ) continue;
-
-                const o = pixelCount * 7;
-                packedBuf[o]   = x & 0xff;
-                packedBuf[o+1] = (x >> 8) & 0xff;
-                packedBuf[o+2] = y & 0xff;
-                packedBuf[o+3] = (y >> 8) & 0xff;
-                packedBuf[o+4] = snapR[si];
-                packedBuf[o+5] = snapG[si];
-                packedBuf[o+6] = snapB[si];
-                pixelCount++;
-            }
-        }
-        const packed = packedBuf.subarray(0, pixelCount * 7);
-        let binary = '';
-        const chunkSize = 8192;
-        for (let i = 0; i < packed.length; i += chunkSize) {
-            binary += String.fromCharCode(...packed.subarray(i, Math.min(i + chunkSize, packed.length)));
-        }
-        const pixels = btoa(binary);
+        // Delegate canvas capture + blend filtering to the generic CV utility.
+        // extractValidPixels: downsamples 4x with nearest-neighbor, rejects
+        // semi-transparent edges (alpha < 200), snaps to nearest grid color,
+        // and applies per-channel tolerance to discard GPU-blended boundary pixels.
+        const pixels = extractValidPixels(this.game.canvas, colorMap);
 
         // Restore everything
         restoreBoard();
@@ -607,6 +531,9 @@ export class Game extends Scene
         (this.cameras as any).render(renderer, this.children, 1);
         renderer.postRender();
 
+        const CV_DOWNSAMPLE = 4;
+        const w = Math.round(this.game.canvas.width / CV_DOWNSAMPLE);
+        const h = Math.round(this.game.canvas.height / CV_DOWNSAMPLE);
         return { pixels, width: w, height: h, colorMap };
     }
 
