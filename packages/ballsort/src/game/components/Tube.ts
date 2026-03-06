@@ -334,6 +334,14 @@ export class Tube extends Phaser.GameObjects.Container {
         maskShape.fillRoundedRect(wm.tx - maskW / 2, wm.ty - maskH / 2, maskW, maskH, { tl: 0, tr: 0, bl: radius, br: radius });
         const liquidMask = new Phaser.Display.Masks.GeometryMask(this.scene, maskShape);
         liquidFill.setMask(liquidMask);
+        // 3. Border: draw tube-color stroke on top of liquid, mirroring normal game z-order
+        //    (in normal game, tubeBodyImage with its opaque border renders above the liquid)
+        const borderWidth = Math.max(3, Math.round(maskW * 0.1));
+        const borderGfx = this.scene.add.graphics();
+        borderGfx.lineStyle(borderWidth, tubeColor, 1);
+        borderGfx.strokeRoundedRect(-maskW / 2, -maskH / 2, maskW, maskH, { tl: 0, tr: 0, bl: radius, br: radius });
+        this.add(borderGfx);
+        this.bringToTop(borderGfx);
         this.tubeBodyImage.setVisible(false);
         this.tubeMouthImage.setVisible(false);
         this.highlightBodyImage.setVisible(false);
@@ -351,6 +359,7 @@ export class Tube extends Phaser.GameObjects.Container {
             maskShape.destroy();
             tubeFill.destroy();
             liquidFill.destroy();
+            borderGfx.destroy();
             this.balls.forEach((b, i) => b.setVisible(savedBallVis[i]));
             this.tubeBodyImage.setVisible(saved.bodyVis);
             this.tubeMouthImage.setVisible(saved.mouthVis);
