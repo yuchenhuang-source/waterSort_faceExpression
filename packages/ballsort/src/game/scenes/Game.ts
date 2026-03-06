@@ -408,10 +408,10 @@ export class Game extends Scene
         if (this.cvStepText) this.cvStepText.setText('CV: Processing...');
 
         try {
-            const { data: frame, colorMap } = this.captureColorCodedFrame();
+            const { pixels, width, height, colorMap } = this.captureColorCodedFrame();
             // Send activeIds to server so Python filters before broadcasting to CV UI
             const activeIds = this.board.getColorCodeObjectIds();
-            const response = await bridge.sendFrameAndWait(frame, colorMap, activeIds);
+            const response = await bridge.sendFrameAndWait({ pixels, width, height }, colorMap, activeIds);
             this.cvStepCount++;
             const detections = response.detections || {};
             const tubes = (detections.tubes || []) as Array<{ id: number; x: number; y: number }>;
@@ -474,14 +474,14 @@ export class Game extends Scene
         return result;
     }
 
-    public captureColorCodedFrame(): { data: string; colorMap: ColorMap } {
+    public captureColorCodedFrame(): { pixels: string, width: number, height: number, colorMap: ColorMap } {
         const cam = this.cameras.main;
 
         // Reuse the stable color map (same colors every frame)
         const { colorMap, idToColor } = this.ensureColorMap();
 
-        // White background so near-black colors are visible
-        cam.setBackgroundColor('#FFFFFF');
+        // Transparent background — only actual game objects produce opaque pixels
+        cam.setBackgroundColor('rgba(0,0,0,0)');
 
         // Apply ID mode to board (tubes + balls + hand)
         const restoreBoard = this.board.applyIdRenderMode(idToColor);
@@ -509,18 +509,47 @@ export class Game extends Scene
         (this.cameras as any).render(renderer, this.children, 1);
         renderer.postRender();
 
-        // Capture canvas — downsample 4x to reduce N by 16x for Python processing
+        // Capture canvas — downsample 4x, then extract only non-transparent pixels
         const CV_DOWNSAMPLE = 4;
         const canvas = this.game.canvas;
+        const w = Math.round(canvas.width / CV_DOWNSAMPLE);
+        const h = Math.round(canvas.height / CV_DOWNSAMPLE);
         const offscreen = document.createElement('canvas');
-        offscreen.width = Math.round(canvas.width / CV_DOWNSAMPLE);
-        offscreen.height = Math.round(canvas.height / CV_DOWNSAMPLE);
+        offscreen.width = w;
+        offscreen.height = h;
         const ctx = offscreen.getContext('2d')!;
-        ctx.drawImage(canvas, 0, 0, offscreen.width, offscreen.height);
-        const data = offscreen.toDataURL('image/png');
+        ctx.drawImage(canvas, 0, 0, w, h);
+
+        const imageData = ctx.getImageData(0, 0, w, h).data;
+        // Pack each non-transparent pixel as 7 bytes: x_lo,x_hi, y_lo,y_hi, r,g,b
+        // This is ~7x smaller than JSON [[x,y,r,g,b],...] and stays well under websockets 1MB limit
+        const packedBuf = new Uint8Array(w * h * 7);
+        let pixelCount = 0;
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = (y * w + x) * 4;
+                if (imageData[i + 3] > 128) {
+                    const o = pixelCount * 7;
+                    packedBuf[o]   = x & 0xff;
+                    packedBuf[o+1] = (x >> 8) & 0xff;
+                    packedBuf[o+2] = y & 0xff;
+                    packedBuf[o+3] = (y >> 8) & 0xff;
+                    packedBuf[o+4] = imageData[i];
+                    packedBuf[o+5] = imageData[i+1];
+                    packedBuf[o+6] = imageData[i+2];
+                    pixelCount++;
+                }
+            }
+        }
+        const packed = packedBuf.subarray(0, pixelCount * 7);
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < packed.length; i += chunkSize) {
+            binary += String.fromCharCode(...packed.subarray(i, Math.min(i + chunkSize, packed.length)));
+        }
+        const pixels = btoa(binary);
 
         // Restore everything
-        cam.setBackgroundColor('rgba(0,0,0,0)');
         restoreBoard();
         this.iconBtn.clearTint();
         this.centerBtn.clearTint();
@@ -536,7 +565,7 @@ export class Game extends Scene
         (this.cameras as any).render(renderer, this.children, 1);
         renderer.postRender();
 
-        return { data, colorMap };
+        return { pixels, width: w, height: h, colorMap };
     }
 
     private updateDebugOverlay() {

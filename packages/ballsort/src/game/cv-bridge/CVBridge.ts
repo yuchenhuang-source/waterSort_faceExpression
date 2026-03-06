@@ -17,6 +17,17 @@ export interface CVResponse {
     error?: string;
 }
 
+/** Compact pixel frame — replaces base64 PNG; only non-transparent pixels are included. */
+export interface PixelFrameData {
+    /**
+     * Binary-packed pixels encoded as base64.
+     * Each pixel is 7 bytes: [x_lo, x_hi, y_lo, y_hi, r, g, b] (x/y as uint16 little-endian).
+     */
+    pixels: string;
+    width: number;
+    height: number;
+}
+
 export class CVBridge {
     private ws: WebSocket | null = null;
     private pendingResolve: ((value: CVResponse) => void) | null = null;
@@ -119,18 +130,18 @@ export class CVBridge {
 
     /**
      * Capture a color-coded frame for CV detection by delegating to the Game scene.
-     * Each object is rendered as a flat colored shape with its unique ID color.
+     * Returns compact pixel data (non-transparent pixels only) instead of a full PNG.
      */
-    captureColorCodedFrame(): string {
+    captureColorCodedFrame(): PixelFrameData | null {
         const gameScene = this.game.scene.getScene('Game') as any;
         if (!gameScene || typeof gameScene.captureColorCodedFrame !== 'function') {
             console.warn('[CV-COLOR] Game scene not available for color-coded capture');
-            return '';
+            return null;
         }
         return gameScene.captureColorCodedFrame();
     }
 
-    sendFrameAndWait(frameBase64: string, colorMap?: ColorMap, activeIds?: number[]): Promise<CVResponse> {
+    sendFrameAndWait(frameData: PixelFrameData, colorMap?: ColorMap, activeIds?: number[]): Promise<CVResponse> {
         return new Promise((resolve, reject) => {
             if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
                 reject(new Error('CV server not connected'));
@@ -152,10 +163,11 @@ export class CVBridge {
                 resolve(v);
             };
             this.pendingResolve = wrappedResolve;
-            const msg: Record<string, unknown> = { frame: frameBase64 };
+            const msg: Record<string, unknown> = { pixelData: frameData };
             if (colorMap) msg.colorMap = colorMap;
             if (activeIds) msg.activeIds = activeIds;
-            this.ws.send(JSON.stringify(msg));
+            const serialized = JSON.stringify(msg);
+            this.ws.send(serialized);
         });
     }
 

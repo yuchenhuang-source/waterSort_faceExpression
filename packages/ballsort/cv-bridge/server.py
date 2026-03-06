@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Add cv-bridge dir so we can import processors
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from color_cv_processor import process_color_coded_frame
+from color_cv_processor import process_color_coded_frame, process_pixel_data, make_debug_frame
 
 try:
     import websockets
@@ -30,15 +30,22 @@ clients: set = set()
 
 
 async def handle_game_message(websocket, message: dict) -> dict:
-    """Process frame + colorMap from game, return response."""
-    frame = message.get("frame")
-    if not frame:
-        return {"status": "error", "error": "missing frame"}
-
+    """Process frame/pixelData + colorMap from game, return response."""
     color_map = message.get("colorMap") or {}
     active_ids = message.get("activeIds")  # list of currently-present object IDs
+
+    pixel_data = message.get("pixelData")
+    if pixel_data is not None:
+        result = process_pixel_data(pixel_data, color_map, active_ids)
+        debug_frame = make_debug_frame(pixel_data)
+        return {"status": result.get("status", "ok"), "detections": result, "_debugFrame": debug_frame}
+
+    frame = message.get("frame")
+    if not frame:
+        return {"status": "error", "error": "missing frame or pixelData"}
+
     result = process_color_coded_frame(frame, color_map, active_ids)
-    return {"status": result.get("status", "ok"), "detections": result}
+    return {"status": result.get("status", "ok"), "detections": result, "_debugFrame": frame}
 
 
 async def broadcast(data: dict):
@@ -63,13 +70,15 @@ async def ws_handler(websocket):
             try:
                 msg = json.loads(raw)
                 # If it has "frame", it's from the game
-                if "frame" in msg:
+                if "frame" in msg or "pixelData" in msg:
                     response = await handle_game_message(websocket, msg)
+                    # Strip internal debug frame before sending back to game
+                    debug_frame = response.pop("_debugFrame", None)
                     await websocket.send(json.dumps(response))
-                    # Broadcast to all other clients (UI)
+                    # Broadcast to UI clients — include reconstructed frame for canvas display
                     await broadcast({
                         "type": "frame_processed",
-                        "frame": msg["frame"],
+                        "frame": debug_frame,
                         "detections": response.get("detections", {}),
                         "response": response,
                     })
@@ -126,7 +135,7 @@ async def serve_http(reader, writer):
 
 async def main():
     # WebSocket server
-    ws_server = await websockets.serve(ws_handler, "localhost", WS_PORT, ping_interval=20, ping_timeout=10)
+    ws_server = await websockets.serve(ws_handler, "localhost", WS_PORT, ping_interval=20, ping_timeout=10, max_size=8*1024*1024)
     print(f"[CV] WebSocket server on ws://localhost:{WS_PORT}")
 
     # HTTP server for UI

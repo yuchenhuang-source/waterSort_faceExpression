@@ -298,7 +298,7 @@ export class Tube extends Phaser.GameObjects.Container {
         this.requestDrawLiquid();
     }
 
-    /** Color-coded ID rendering: draw filled tube shape + liquid with random colors from idToColor map. Returns restore function. */
+    /** Color-coded ID rendering: tintFill tube textures + liquid with random colors from idToColor map. Returns restore function. */
     public applyIdRenderMode(idToColor: Map<number, number>): () => void {
         const savedBallVis = this.balls.map(b => b.visible);
         const saved = {
@@ -313,56 +313,52 @@ export class Tube extends Phaser.GameObjects.Container {
             candleVis: this.candleImage?.visible ?? false,
             fireVis: this.fireSprite?.visible ?? false,
         };
-        // 1. Tube body: use filled Graphics instead of tubeBodyImage (which has only outline)
+
         const tubeColor = idToColor.get(this.id) ?? 0x888888;
-        const tubeFill = this.scene.add.graphics();
+
+        // 1. Liquid: draw per-ball colors from idToColor as local Graphics behind tube textures
         const maskW = this.currentWidth - 4;
         const maskH = this.currentHeight - 4;
         const radius = this.currentWidth / 2;
-        tubeFill.fillStyle(tubeColor, 1);
-        tubeFill.fillRoundedRect(-maskW / 2, -maskH / 2, maskW, maskH, { tl: 0, tr: 0, bl: radius, br: radius });
-        this.add(tubeFill);
-        this.sendToBack(tubeFill);
-        // 2. Liquid: draw per-ball colors from idToColor as local Graphics (above tubeFill in z-order)
         const liquidFill = this.scene.add.graphics();
         this.drawLiquidIdLocal(liquidFill, idToColor);
         this.add(liquidFill);
-        // Apply GeometryMask so liquid is clipped to tube shape (same rounded-rect as tubeFill)
+        // Apply GeometryMask so liquid is clipped to tube shape
         const wm = this.getWorldTransformMatrix();
         const maskShape = this.scene.make.graphics({ add: false });
         maskShape.fillStyle(0xffffff, 1);
         maskShape.fillRoundedRect(wm.tx - maskW / 2, wm.ty - maskH / 2, maskW, maskH, { tl: 0, tr: 0, bl: radius, br: radius });
         const liquidMask = new Phaser.Display.Masks.GeometryMask(this.scene, maskShape);
         liquidFill.setMask(liquidMask);
-        // 3. Border: draw tube-color stroke on top of liquid, mirroring normal game z-order
-        //    (in normal game, tubeBodyImage with its opaque border renders above the liquid)
-        const borderWidth = Math.max(3, Math.round(maskW * 0.1));
-        const borderGfx = this.scene.add.graphics();
-        borderGfx.lineStyle(borderWidth, tubeColor, 1);
-        borderGfx.strokeRoundedRect(-maskW / 2, -maskH / 2, maskW, maskH, { tl: 0, tr: 0, bl: radius, br: radius });
-        this.add(borderGfx);
-        this.bringToTop(borderGfx);
-        this.tubeBodyImage.setVisible(false);
-        this.tubeMouthImage.setVisible(false);
+
+        // 2. Tube textures: tintFill to match the actual tube shape (same pattern as Ball.applyIdRenderMode)
+        //    tubeBodyImage renders on top of liquidFill, so tube walls appear over ball colors
+        this.tubeMouthImage.setTintFill(tubeColor);
+        this.tubeMouthImage.setVisible(true);
+        this.tubeBodyImage.setTintFill(tubeColor);
+        this.tubeBodyImage.setVisible(true);
+        // Ensure tube images are above liquidFill in z-order
+        this.bringToTop(this.tubeMouthImage);
+        this.bringToTop(this.tubeBodyImage);
+
         this.highlightBodyImage.setVisible(false);
         this.highlightMouthImage.setVisible(false);
         this.liquidContainer.setVisible(false);
         if (this.arucoImage) this.arucoImage.setVisible(false);
         if (this.candleImage) this.candleImage.setVisible(false);
         if (this.fireSprite) this.fireSprite.setVisible(false);
-        // 3. Balls: hide (replaced by liquidFill above)
         this.balls.forEach(b => b.setVisible(false));
 
         return () => {
             liquidFill.clearMask();
             liquidMask.destroy();
             maskShape.destroy();
-            tubeFill.destroy();
             liquidFill.destroy();
-            borderGfx.destroy();
-            this.balls.forEach((b, i) => b.setVisible(savedBallVis[i]));
+            this.tubeBodyImage.clearTint();
             this.tubeBodyImage.setVisible(saved.bodyVis);
+            this.tubeMouthImage.clearTint();
             this.tubeMouthImage.setVisible(saved.mouthVis);
+            this.balls.forEach((b, i) => b.setVisible(savedBallVis[i]));
             this.highlightBodyImage.setVisible(saved.hlBodyVis);
             this.highlightBodyImage.setAlpha(saved.hlBodyAlpha);
             this.highlightMouthImage.setVisible(saved.hlMouthVis);
