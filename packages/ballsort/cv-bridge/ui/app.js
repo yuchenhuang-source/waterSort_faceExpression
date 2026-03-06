@@ -161,19 +161,16 @@ function connect() {
             h3.textContent = `Frame Diffs (a=${a} pos≥${thresholdPos} area≥${thresholdArea}) (${entries.length})`;
             group.appendChild(h3);
             entries.forEach(([, d]) => {
-              const item = document.createElement('span');
-              item.className = 'detection-capsule';
-              item.style.background = d.framesAtZero === 0 ? '#6a0' : '#555';
-              item.style.color = '#fff';
-              const parts = [];
-              if (d.framesAtZero === 0) {
-                if (d.dist != null && d.dist !== 0) parts.push(`Δdist=${d.dist}`);
-                else if (d.dx !== 0 || d.dy !== 0) parts.push(`Δpos(${d.dx},${d.dy})`);
-                if (d.dArea != null && d.dArea !== 0) parts.push(`Δarea=${d.dArea}`);
-              }
-              if (parts.length === 0) parts.push('0');
-              item.textContent = `${d.label ?? 'id' + d.id}: ${parts.join(' ')}`;
-              group.appendChild(item);
+              const row = document.createElement('div');
+              row.className = 'detection-capsule detection-capsule-diff';
+              row.style.background = d.framesAtZero === 0 ? '#6a0' : '#555';
+              row.style.color = '#fff';
+              const distVal = d.framesAtZero === 0 ? (d.dist ?? Math.sqrt((d.dx ?? 0) ** 2 + (d.dy ?? 0) ** 2)) : 0;
+              const areaVal = d.framesAtZero === 0 ? (d.dArea ?? 0) : 0;
+              const distStr = Number(distVal).toFixed(1);
+              const areaStr = Number(areaVal).toFixed(0);
+              row.innerHTML = `<span class="diff-label">${d.label ?? 'id' + d.id}</span><span class="diff-cell">Δdist=<span class="diff-val">${distStr}</span></span><span class="diff-cell">Δarea=<span class="diff-val">${areaStr}</span></span>`;
+              group.appendChild(row);
             });
             listEl.appendChild(group);
           }

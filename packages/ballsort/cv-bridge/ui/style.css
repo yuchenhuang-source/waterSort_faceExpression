@@ -220,6 +220,30 @@ section h2 {
   white-space: nowrap;
 }
 
+.detection-capsule-diff {
+  display: grid;
+  grid-template-columns: 7em 6em 6em;
+  gap: 0.25rem;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.detection-capsule-diff .diff-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detection-capsule-diff .diff-cell {
+  display: flex;
+  align-items: baseline;
+}
+
+.detection-capsule-diff .diff-val {
+  text-align: right;
+  min-width: 3.5em;
+  margin-left: auto;
+}
+
 .detection-capsule.tube {
   background: rgba(0, 255, 0, 0.2);
   color: #0f0;
