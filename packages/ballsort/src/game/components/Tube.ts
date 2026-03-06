@@ -327,6 +327,13 @@ export class Tube extends Phaser.GameObjects.Container {
         const liquidFill = this.scene.add.graphics();
         this.drawLiquidIdLocal(liquidFill, idToColor);
         this.add(liquidFill);
+        // Apply GeometryMask so liquid is clipped to tube shape (same rounded-rect as tubeFill)
+        const wm = this.getWorldTransformMatrix();
+        const maskShape = this.scene.make.graphics({ add: false });
+        maskShape.fillStyle(0xffffff, 1);
+        maskShape.fillRoundedRect(wm.tx - maskW / 2, wm.ty - maskH / 2, maskW, maskH, { tl: 0, tr: 0, bl: radius, br: radius });
+        const liquidMask = new Phaser.Display.Masks.GeometryMask(this.scene, maskShape);
+        liquidFill.setMask(liquidMask);
         this.tubeBodyImage.setVisible(false);
         this.tubeMouthImage.setVisible(false);
         this.highlightBodyImage.setVisible(false);
@@ -339,6 +346,9 @@ export class Tube extends Phaser.GameObjects.Container {
         this.balls.forEach(b => b.setVisible(false));
 
         return () => {
+            liquidFill.clearMask();
+            liquidMask.destroy();
+            maskShape.destroy();
             tubeFill.destroy();
             liquidFill.destroy();
             this.balls.forEach((b, i) => b.setVisible(savedBallVis[i]));
