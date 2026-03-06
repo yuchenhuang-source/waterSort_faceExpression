@@ -69,41 +69,57 @@ function connect() {
             const ctx = overlayEl.getContext('2d');
             ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
             // Phase 3: draw detection boxes (scale coords from game space to canvas space)
-            tubes.forEach(t => {
-              const dx = t.x * s, dy = t.y * s;
-              ctx.strokeStyle = '#0f0';
-              ctx.lineWidth = 2;
-              ctx.strokeRect(dx - 8, dy - 8, 16, 16);
-              ctx.fillStyle = '#0f0';
+            // Helper: draw bbox or fallback to fixed-size rect at center
+            const drawObj = (obj, strokeColor, fillColor, label, fallbackSize) => {
+              const cx = obj.x * s, cy = obj.y * s;
+              const b = obj.bbox;
+              if (b && b.w > 0 && b.h > 0) {
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(b.x * s, b.y * s, b.w * s, b.h * s);
+              } else {
+                const half = (fallbackSize || 8);
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cx - half, cy - half, half * 2, half * 2);
+              }
+              ctx.fillStyle = fillColor;
               ctx.font = '12px monospace';
-              ctx.fillText(`T${t.id}`, dx - 6, dy + 4);
-            });
-            balls.forEach(b => {
-              const dx = b.x * s, dy = b.y * s;
-              ctx.strokeStyle = '#f80';
-              ctx.lineWidth = 2;
-              ctx.strokeRect(dx - 8, dy - 8, 16, 16);
-              ctx.fillStyle = '#f80';
-              ctx.font = '12px monospace';
-              ctx.fillText(`B${b.id}`, dx - 6, dy + 4);
-            });
+              ctx.fillText(label, cx - 6, cy + 4);
+            };
+            tubes.forEach(t => drawObj(t, '#0f0', '#0f0', `T${t.id}`, 8));
+            balls.forEach(b => drawObj(b, '#f80', '#f80', `B${b.id}`, 8));
             if (hand) {
-              const dx = hand.x * s, dy = hand.y * s;
-              ctx.strokeStyle = '#0ff';
-              ctx.lineWidth = 3;
-              ctx.strokeRect(dx - 12, dy - 12, 24, 24);
+              const b = hand.bbox;
+              const cx = hand.x * s, cy = hand.y * s;
+              if (b && b.w > 0 && b.h > 0) {
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(b.x * s, b.y * s, b.w * s, b.h * s);
+              } else {
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(cx - 12, cy - 12, 24, 24);
+              }
               ctx.fillStyle = '#0ff';
               ctx.font = '13px monospace';
-              ctx.fillText('HAND', dx - 14, dy - 14);
+              ctx.fillText('HAND', cx - 14, cy - 14);
             }
             buttons.forEach(btn => {
-              const dx = btn.x * s, dy = btn.y * s;
-              ctx.strokeStyle = '#f0f';
-              ctx.lineWidth = 2;
-              ctx.strokeRect(dx - 10, dy - 10, 20, 20);
+              const b = btn.bbox;
+              const cx = btn.x * s, cy = btn.y * s;
+              if (b && b.w > 0 && b.h > 0) {
+                ctx.strokeStyle = '#f0f';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(b.x * s, b.y * s, b.w * s, b.h * s);
+              } else {
+                ctx.strokeStyle = '#f0f';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cx - 10, cy - 10, 20, 20);
+              }
               ctx.fillStyle = '#f0f';
               ctx.font = '12px monospace';
-              ctx.fillText(btn.label.toUpperCase(), dx - 10, dy - 12);
+              ctx.fillText(btn.label.toUpperCase(), cx - 10, cy - 12);
             });
           };
         }
@@ -126,7 +142,8 @@ function connect() {
             tubes.forEach(t => {
               const item = document.createElement('span');
               item.className = 'detection-capsule tube';
-              item.textContent = `T${t.id} (${t.x?.toFixed(1) ?? '-'}, ${t.y?.toFixed(1) ?? '-'})`;
+              const bboxStr = t.bbox ? ` [${t.bbox.w}×${t.bbox.h}]` : '';
+              item.textContent = `T${t.id} (${t.x?.toFixed(1) ?? '-'}, ${t.y?.toFixed(1) ?? '-'})${bboxStr}`;
               group.appendChild(item);
             });
             listEl.appendChild(group);
@@ -140,7 +157,8 @@ function connect() {
             balls.forEach(b => {
               const item = document.createElement('span');
               item.className = 'detection-capsule ball';
-              item.textContent = `B${b.id} [${b.tubeId ?? '-'}:${b.index ?? '-'}] (${b.x?.toFixed(1) ?? '-'}, ${b.y?.toFixed(1) ?? '-'})`;
+              const bboxStr = b.bbox ? ` [${b.bbox.w}×${b.bbox.h}]` : '';
+              item.textContent = `B${b.id} [${b.tubeId ?? '-'}:${b.index ?? '-'}] (${b.x?.toFixed(1) ?? '-'}, ${b.y?.toFixed(1) ?? '-'})${bboxStr}`;
               group.appendChild(item);
             });
             listEl.appendChild(group);
@@ -154,7 +172,8 @@ function connect() {
             const item = document.createElement('span');
             item.className = 'detection-capsule';
             item.style.background = '#0cc';
-            item.textContent = `HAND (${hand.x?.toFixed(1) ?? '-'}, ${hand.y?.toFixed(1) ?? '-'}) px=${hand.pixels}`;
+            const handBboxStr = hand.bbox ? ` [${hand.bbox.w}×${hand.bbox.h}]` : '';
+            item.textContent = `HAND (${hand.x?.toFixed(1) ?? '-'}, ${hand.y?.toFixed(1) ?? '-'})${handBboxStr} px=${hand.pixels}`;
             group.appendChild(item);
             listEl.appendChild(group);
           }
@@ -169,7 +188,8 @@ function connect() {
               item.className = 'detection-capsule';
               item.style.background = '#c0c';
               item.style.color = '#fff';
-              item.textContent = `${btn.label.toUpperCase()} id=${btn.id} (${btn.x?.toFixed(1) ?? '-'}, ${btn.y?.toFixed(1) ?? '-'})`;
+              const bboxStr = btn.bbox ? ` [${btn.bbox.w}×${btn.bbox.h}]` : '';
+              item.textContent = `${btn.label.toUpperCase()} id=${btn.id} (${btn.x?.toFixed(1) ?? '-'}, ${btn.y?.toFixed(1) ?? '-'})${bboxStr}`;
               group.appendChild(item);
             });
             listEl.appendChild(group);

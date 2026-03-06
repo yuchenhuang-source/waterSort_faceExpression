@@ -135,28 +135,35 @@ def process_pixel_data(pixel_frame: dict, color_map: dict | None = None, active_
         sum_xs = np.bincount(inverse, weights=acc_xs, minlength=len(unique_ids))
         sum_ys = np.bincount(inverse, weights=acc_ys, minlength=len(unique_ids))
 
-        obj_centroids: dict[int, tuple[int, int, int]] = {}
+        obj_centroids: dict[int, tuple[int, int, int, dict]] = {}
         for i, uid in enumerate(unique_ids):
             if counts[i] >= MIN_PIXELS:
                 cx_scaled = int(sum_xs[i] / counts[i] * coord_scale)
                 cy_scaled = int(sum_ys[i] / counts[i] * coord_scale)
-                obj_centroids[int(uid)] = (cx_scaled, cy_scaled, int(counts[i]))
+                mask = inverse == i
+                min_x = int(acc_xs[mask].min() * coord_scale)
+                max_x = int(acc_xs[mask].max() * coord_scale)
+                min_y = int(acc_ys[mask].min() * coord_scale)
+                max_y = int(acc_ys[mask].max() * coord_scale)
+                bbox = {"x": min_x, "y": min_y, "w": max_x - min_x, "h": max_y - min_y}
+                obj_centroids[int(uid)] = (cx_scaled, cy_scaled, int(counts[i]), bbox)
 
         hand = None
         detected_ids = []
-        for obj_id, (cx, cy, pixel_count) in obj_centroids.items():
+        for obj_id, (cx, cy, pixel_count, bbox) in obj_centroids.items():
             detected_ids.append(obj_id)
+            obj = {"id": obj_id, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox}
             if obj_id < 100:
-                result["tubes"].append({"id": obj_id, "x": cx, "y": cy, "pixels": pixel_count})
+                result["tubes"].append(obj)
             elif obj_id < 500:
                 tube_id, slot_index = divmod(obj_id - 100, 10)
-                result["balls"].append({"id": obj_id, "tubeId": tube_id, "index": slot_index, "x": cx, "y": cy, "pixels": pixel_count})
+                result["balls"].append({"id": obj_id, "tubeId": tube_id, "index": slot_index, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
             elif obj_id == 500:
-                hand = {"id": 500, "x": cx, "y": cy, "pixels": pixel_count}
+                hand = {"id": 500, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox}
             elif obj_id == 501:
-                result["buttons"].append({"id": 501, "label": "icon", "x": cx, "y": cy, "pixels": pixel_count})
+                result["buttons"].append({"id": 501, "label": "icon", "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
             elif obj_id == 502:
-                result["buttons"].append({"id": 502, "label": "download", "x": cx, "y": cy, "pixels": pixel_count})
+                result["buttons"].append({"id": 502, "label": "download", "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
 
         if hand:
             result["hand"] = hand
@@ -268,21 +275,27 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
         sum_xs = np.bincount(inverse, weights=acc_xs, minlength=len(unique_ids))
         sum_ys = np.bincount(inverse, weights=acc_ys, minlength=len(unique_ids))
         # Reconstruct obj_pixels-compatible structure (xs, ys lists) only for centroid use
-        obj_centroids: dict[int, tuple[int, int, int]] = {}  # id -> (cx, cy, count)
+        obj_centroids: dict[int, tuple[int, int, int, dict]] = {}  # id -> (cx, cy, count, bbox)
         for i, uid in enumerate(unique_ids):
             if counts[i] >= MIN_PIXELS:
                 cx_scaled = int(sum_xs[i] / counts[i] * coord_scale)
                 cy_scaled = int(sum_ys[i] / counts[i] * coord_scale)
-                obj_centroids[int(uid)] = (cx_scaled, cy_scaled, int(counts[i]))
+                mask = inverse == i
+                min_x = int(acc_xs[mask].min() * coord_scale)
+                max_x = int(acc_xs[mask].max() * coord_scale)
+                min_y = int(acc_ys[mask].min() * coord_scale)
+                max_y = int(acc_ys[mask].max() * coord_scale)
+                bbox = {"x": min_x, "y": min_y, "w": max_x - min_x, "h": max_y - min_y}
+                obj_centroids[int(uid)] = (cx_scaled, cy_scaled, int(counts[i]), bbox)
 
         hand = None
         detected_ids = []
-        for obj_id, (cx, cy, pixel_count) in obj_centroids.items():
+        for obj_id, (cx, cy, pixel_count, bbox) in obj_centroids.items():
             detected_ids.append(obj_id)
 
             if obj_id < 100:
                 # Tube (0-13)
-                result["tubes"].append({"id": obj_id, "x": cx, "y": cy, "pixels": pixel_count})
+                result["tubes"].append({"id": obj_id, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
             elif obj_id < 500:
                 # Ball: 100 + tubeId*10 + slotIndex (range 100-237)
                 tube_id, slot_index = divmod(obj_id - 100, 10)
@@ -293,13 +306,14 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
                     "x": cx,
                     "y": cy,
                     "pixels": pixel_count,
+                    "bbox": bbox,
                 })
             elif obj_id == 500:
-                hand = {"id": 500, "x": cx, "y": cy, "pixels": pixel_count}
+                hand = {"id": 500, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox}
             elif obj_id == 501:
-                result["buttons"].append({"id": 501, "label": "icon", "x": cx, "y": cy, "pixels": pixel_count})
+                result["buttons"].append({"id": 501, "label": "icon", "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
             elif obj_id == 502:
-                result["buttons"].append({"id": 502, "label": "download", "x": cx, "y": cy, "pixels": pixel_count})
+                result["buttons"].append({"id": 502, "label": "download", "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
 
         if hand:
             result["hand"] = hand
