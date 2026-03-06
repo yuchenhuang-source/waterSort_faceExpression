@@ -206,6 +206,23 @@
   border-color: #00d9ff;
 }
 
+.sim-cv-download-btn {
+  padding: 6px 12px;
+  border: 1px solid #2a6e2a;
+  border-radius: 6px;
+  background: #1a3d1a;
+  color: #6dff6d;
+  font-size: 13px;
+  cursor: pointer;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.sim-cv-download-btn:hover {
+  background: #2a6e2a;
+  border-color: #6dff6d;
+}
+
 .sim-icon-debug {
   font-size: 11px;
   color: #888;

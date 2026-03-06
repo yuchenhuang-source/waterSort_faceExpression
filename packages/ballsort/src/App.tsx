@@ -42,6 +42,14 @@ function App() {
                 EventBus.emit(CV_RECORD_PLAY);
             } else if (e.data?.type === 'cv-record-pause') EventBus.emit(CV_RECORD_PAUSE);
             else if (e.data?.type === 'cv-record-end') EventBus.emit(CV_RECORD_END);
+            else if (e.data?.type === 'cv-capture-frame') {
+                const game = phaserRef.current?.game;
+                if (!game) return;
+                const gameScene = game.scene.getScene('Game') as any;
+                if (!gameScene || typeof gameScene.captureColorCodedFrame !== 'function') return;
+                const frame = gameScene.captureColorCodedFrame();
+                window.parent.postMessage({ type: 'cv-frame-data', ...frame }, '*');
+            }
         };
         window.addEventListener('message', handler);
         const unsub = (s: string) => {

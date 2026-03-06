@@ -1,7 +1,40 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ConstantsEditor } from './ConstantsEditor';
 import CVRecordControls from './CVRecordControls';
+import type { ColorMap } from '../game/render/ObjectIdPipeline';
 import './DeviceSimulator.css';
+
+/** Decode a cv-frame-data payload and trigger a PNG download. */
+function downloadCVFrameAsPng(data: { pixels: string; width: number; height: number; colorMap: ColorMap }) {
+  const { pixels, width, height } = data;
+  const binaryStr = atob(pixels);
+  const buf = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) buf[i] = binaryStr.charCodeAt(i);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  const imageData = ctx.createImageData(width, height);
+
+  const pixelCount = Math.floor(buf.length / 7);
+  for (let i = 0; i < pixelCount; i++) {
+    const o = i * 7;
+    const x = buf[o] | (buf[o + 1] << 8);
+    const y = buf[o + 2] | (buf[o + 3] << 8);
+    const idx = (y * width + x) * 4;
+    imageData.data[idx]     = buf[o + 4];
+    imageData.data[idx + 1] = buf[o + 5];
+    imageData.data[idx + 2] = buf[o + 6];
+    imageData.data[idx + 3] = 255;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = `cv-frame-${Date.now()}.png`;
+  a.click();
+}
 
 const PRESETS = [
   { name: 'iPhone 14', w: 390, h: 844 },
@@ -110,6 +143,9 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
       }
       if (e.data?.type === 'cv-record-debug') {
         console.log('[CV-RECORD] debug (from iframe)', e.data.msg, e.data.connected);
+      }
+      if (e.data?.type === 'cv-frame-data' && e.data.pixels && e.data.width && e.data.height) {
+        downloadCVFrameAsPng(e.data as { pixels: string; width: number; height: number; colorMap: ColorMap });
       }
     };
     window.addEventListener('message', handler);
@@ -261,6 +297,16 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
             : 'icon-debug: waiting'}
         </span>
         {isCVMode && <CVRecordControls iframeRef={iframeRef} />}
+        {isCVMode && (
+          <button
+            type="button"
+            className="sim-cv-download-btn"
+            title="Download the exact pixel frame the game sends to CV"
+            onClick={() => iframeRef.current?.contentWindow?.postMessage({ type: 'cv-capture-frame' }, '*')}
+          >
+            ⬇ Download CV Frame
+          </button>
+        )}
       </div>
       <div className={`device-simulator-body ${showConstantsEditor ? 'has-editor' : ''}`}>
         <div className="device-simulator-frame">
