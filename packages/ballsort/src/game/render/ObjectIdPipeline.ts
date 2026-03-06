@@ -31,7 +31,7 @@ export const COLOR_GRID_STEP = 34;
  * any blend > 17.6% in any changing channel is rejected.
  * The contaminated region [0.20, 0.80] has zero slip-through.
  */
-export const COLOR_GRID_TOL = 0;
+export const COLOR_GRID_TOL = 1;
 /** Near-white rejection: skip colors where ALL channels exceed this. */
 const WHITE_THRESH = 215;
 /** Euclidean distance² threshold for initial nearest-color snap. */
@@ -103,8 +103,11 @@ export function generateColorMap(objectIds: number[]): {
  *   4. Reject if nearest distance² > MAX_DIST_SQ (20²).
  *   5. Reject if any channel deviates > COLOR_GRID_TOL from the snapped value
  *      (catches GPU-blended edge pixels that slip past the distance check).
- *   6. Pack accepted pixels as 7 bytes each: [x_lo,x_hi, y_lo,y_hi, r,g,b].
- *   7. Return as base64-encoded binary string.
+ *   6. 4-neighbor consistency check: reject pixels with fewer than 2 matching
+ *      orthogonal neighbors. Out-of-bounds neighbors are skipped. Blended
+ *      boundary pixels typically have 0–1 matches and are discarded.
+ *   7. Pack accepted pixels as 7 bytes each: [x_lo,x_hi, y_lo,y_hi, r,g,b].
+ *   8. Return as base64-encoded binary string.
  *
  * @param canvas    The game's WebGL canvas after ID-color rendering.
  * @param colorMap  Hex→id mapping produced by generateColorMap().
@@ -141,8 +144,9 @@ export function extractValidPixels(
     }
     const snapLen = hexKeys.length;
 
-    const packedBuf = new Uint8Array(w * h * 7);
-    let pixelCount = 0;
+    // Pass 1: snap every pixel → record color index in snapIdx (-1 = rejected).
+    // Use Int16Array so -1 fits and indices up to 32767 are supported.
+    const snapIdx = new Int16Array(w * h).fill(-1);
 
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
@@ -170,12 +174,34 @@ export function extractValidPixels(
             if (bestDist > MAX_DIST_SQ) continue;
 
             // Per-channel grid validity check:
-            // Reject if any channel deviates too far from the snapped value.
             // GPU-blended pixels land between grid points, so at least one channel
             // will exceed COLOR_GRID_TOL even if Euclidean distance passes.
             if (Math.abs(pr - snapR[si]) > COLOR_GRID_TOL ||
                 Math.abs(pg - snapG[si]) > COLOR_GRID_TOL ||
                 Math.abs(pb - snapB[si]) > COLOR_GRID_TOL) continue;
+
+            snapIdx[y * w + x] = si;
+        }
+    }
+
+    // Pass 2: 4-neighbor consistency check (relaxed).
+    // Accept if at least 2 orthogonal neighbors share the same snap index.
+    // Out-of-bounds neighbors are not counted. Blended boundary pixels
+    // typically have 0–1 matching neighbors and are discarded.
+    const packedBuf = new Uint8Array(w * h * 7);
+    let pixelCount = 0;
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const si = snapIdx[y * w + x];
+            if (si < 0) continue;
+
+            let matchCount = 0;
+            if (y > 0 && snapIdx[(y - 1) * w + x] === si) matchCount++;
+            if (y < h - 1 && snapIdx[(y + 1) * w + x] === si) matchCount++;
+            if (x > 0 && snapIdx[y * w + (x - 1)] === si) matchCount++;
+            if (x < w - 1 && snapIdx[y * w + (x + 1)] === si) matchCount++;
+            if (matchCount < 2) continue;
 
             const o = pixelCount * 7;
             packedBuf[o]     = x & 0xff;
