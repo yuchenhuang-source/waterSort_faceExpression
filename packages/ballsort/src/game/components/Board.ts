@@ -140,7 +140,7 @@ export class Board extends Phaser.GameObjects.Container {
         if (this.hand) {
             const savedHandVis = this.hand.visible;
             const handColor = idToColor.get(500); // hand ID is 500, above ball range (100-237)
-            if (handColor !== undefined) {
+            if (handColor !== undefined && savedHandVis) {
                 this.hand.setTintFill(handColor);
                 this.hand.setVisible(true);
             }
