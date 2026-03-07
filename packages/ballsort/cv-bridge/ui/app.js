@@ -36,6 +36,14 @@ function formatAreaDesc(dArea, prevArea) {
   return dArea > 0 ? `变大 ${pct}%` : `变小 ${pct}%`;
 }
 
+function getPos(obj) {
+  const b = obj.bbox;
+  if (b && (b.w > 0 || b.h > 0)) {
+    return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+  }
+  return { x: obj.x ?? 0, y: obj.y ?? 0 };
+}
+
 const toggleBtn = document.getElementById('toggle-overlay');
 if (toggleBtn) {
   toggleBtn.addEventListener('click', () => {
@@ -98,7 +106,8 @@ function connect() {
             // Phase 3: draw detection boxes (scale coords from game space to canvas space)
             // Helper: draw bbox or fallback to fixed-size rect at center
             const drawObj = (obj, strokeColor, fillColor, label, fallbackSize) => {
-              const cx = obj.x * s, cy = obj.y * s;
+              const p = getPos(obj);
+              const cx = p.x * s, cy = p.y * s;
               const b = obj.bbox;
               if (b && b.w > 0 && b.h > 0) {
                 ctx.strokeStyle = strokeColor;
@@ -118,7 +127,8 @@ function connect() {
             balls.forEach(b => drawObj(b, '#f80', '#f80', `B${b.id}`, 8));
             if (hand) {
               const b = hand.bbox;
-              const cx = hand.x * s, cy = hand.y * s;
+              const p = getPos(hand);
+              const cx = p.x * s, cy = p.y * s;
               if (b && b.w > 0 && b.h > 0) {
                 ctx.strokeStyle = '#0ff';
                 ctx.lineWidth = 3;
@@ -134,7 +144,8 @@ function connect() {
             }
             buttons.forEach(btn => {
               const b = btn.bbox;
-              const cx = btn.x * s, cy = btn.y * s;
+              const p = getPos(btn);
+              const cx = p.x * s, cy = p.y * s;
               if (b && b.w > 0 && b.h > 0) {
                 ctx.strokeStyle = '#f0f';
                 ctx.lineWidth = 2;
@@ -153,7 +164,7 @@ function connect() {
         statsEl.textContent = `Frames: ${frameCount}\nProcessing: ${detections.processingMs ?? '-'} ms`;
         const summaryEl = document.getElementById('detection-summary');
         if (summaryEl) {
-          const handStr = hand ? ` | 手 (${hand.x},${hand.y})` : '';
+          const handStr = hand ? ` | 手 (${getPos(hand).x.toFixed(0)},${getPos(hand).y.toFixed(0)})` : '';
           const btnStr = buttons.length > 0 ? ` | 按钮 [${buttons.map(b=>b.label).join(',')}]` : '';
           summaryEl.textContent = `检测到: ${tubes.length} 个试管 [${tubeIds || '-'}], ${balls.length} 个球 [${ballIds || '-'}]${handStr}${btnStr}`;
         }
@@ -225,7 +236,8 @@ function connect() {
               const item = document.createElement('span');
               item.className = 'detection-capsule tube';
               const bboxStr = t.bbox ? ` [${t.bbox.w}×${t.bbox.h}]` : '';
-              item.textContent = `T${t.id} (${t.x?.toFixed(1) ?? '-'}, ${t.y?.toFixed(1) ?? '-'})${bboxStr}`;
+              const pt = getPos(t);
+              item.textContent = `T${t.id} (${pt.x?.toFixed(1) ?? '-'}, ${pt.y?.toFixed(1) ?? '-'})${bboxStr}`;
               group.appendChild(item);
             });
             listEl.appendChild(group);
@@ -240,7 +252,8 @@ function connect() {
               const item = document.createElement('span');
               item.className = 'detection-capsule ball';
               const bboxStr = b.bbox ? ` [${b.bbox.w}×${b.bbox.h}]` : '';
-              item.textContent = `B${b.id} [${b.tubeId ?? '-'}:${b.index ?? '-'}] (${b.x?.toFixed(1) ?? '-'}, ${b.y?.toFixed(1) ?? '-'})${bboxStr}`;
+              const pb = getPos(b);
+              item.textContent = `B${b.id} [${b.tubeId ?? '-'}:${b.index ?? '-'}] (${pb.x?.toFixed(1) ?? '-'}, ${pb.y?.toFixed(1) ?? '-'})${bboxStr}`;
               group.appendChild(item);
             });
             listEl.appendChild(group);
@@ -255,7 +268,8 @@ function connect() {
             item.className = 'detection-capsule';
             item.style.background = '#0cc';
             const handBboxStr = hand.bbox ? ` [${hand.bbox.w}×${hand.bbox.h}]` : '';
-            item.textContent = `HAND (${hand.x?.toFixed(1) ?? '-'}, ${hand.y?.toFixed(1) ?? '-'})${handBboxStr} px=${hand.pixels}`;
+            const ph = getPos(hand);
+            item.textContent = `HAND (${ph.x?.toFixed(1) ?? '-'}, ${ph.y?.toFixed(1) ?? '-'})${handBboxStr} px=${hand.pixels}`;
             group.appendChild(item);
             listEl.appendChild(group);
           }
@@ -271,7 +285,8 @@ function connect() {
               item.style.background = '#c0c';
               item.style.color = '#fff';
               const bboxStr = btn.bbox ? ` [${btn.bbox.w}×${btn.bbox.h}]` : '';
-              item.textContent = `${btn.label.toUpperCase()} id=${btn.id} (${btn.x?.toFixed(1) ?? '-'}, ${btn.y?.toFixed(1) ?? '-'})${bboxStr}`;
+              const pbtn = getPos(btn);
+              item.textContent = `${btn.label.toUpperCase()} id=${btn.id} (${pbtn.x?.toFixed(1) ?? '-'}, ${pbtn.y?.toFixed(1) ?? '-'})${bboxStr}`;
               group.appendChild(item);
             });
             listEl.appendChild(group);

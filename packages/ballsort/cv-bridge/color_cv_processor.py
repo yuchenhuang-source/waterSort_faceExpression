@@ -191,21 +191,19 @@ def process_pixel_data(pixel_frame: dict, color_map: dict | None = None, active_
         acc_xs = xs_all[accepted]
         acc_ys = ys_all[accepted]
         unique_ids, inverse, counts = np.unique(acc_ids, return_inverse=True, return_counts=True)
-        sum_xs = np.bincount(inverse, weights=acc_xs, minlength=len(unique_ids))
-        sum_ys = np.bincount(inverse, weights=acc_ys, minlength=len(unique_ids))
 
         obj_centroids: dict[int, tuple[int, int, int, dict]] = {}
         for i, uid in enumerate(unique_ids):
             if counts[i] >= MIN_PIXELS:
-                cx_scaled = int(sum_xs[i] / counts[i] * coord_scale)
-                cy_scaled = int(sum_ys[i] / counts[i] * coord_scale)
                 mask = inverse == i
                 min_x = int(acc_xs[mask].min() * coord_scale)
                 max_x = int(acc_xs[mask].max() * coord_scale)
                 min_y = int(acc_ys[mask].min() * coord_scale)
                 max_y = int(acc_ys[mask].max() * coord_scale)
                 bbox = {"x": min_x, "y": min_y, "w": max_x - min_x, "h": max_y - min_y}
-                obj_centroids[int(uid)] = (cx_scaled, cy_scaled, int(counts[i]), bbox)
+                cx_bbox = (min_x + max_x) // 2
+                cy_bbox = (min_y + max_y) // 2
+                obj_centroids[int(uid)] = (cx_bbox, cy_bbox, int(counts[i]), bbox)
 
         hand = None
         detected_ids = []
@@ -327,27 +325,24 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
 
         accepted = nearest_dist < MATCH_DIST_THRESH_SQ
 
-        # Fully vectorized centroid computation using np.bincount
+        # Fully vectorized bbox + center computation
         tc_ids_arr = np.array(tc_ids, dtype=np.int32)
         acc_ids = tc_ids_arr[nearest_idx[accepted]]   # (M,) object ID per accepted pixel
         acc_xs = xs_all[accepted].astype(np.float32)  # (M,)
         acc_ys = ys_all[accepted].astype(np.float32)  # (M,)
         unique_ids, inverse, counts = np.unique(acc_ids, return_inverse=True, return_counts=True)
-        sum_xs = np.bincount(inverse, weights=acc_xs, minlength=len(unique_ids))
-        sum_ys = np.bincount(inverse, weights=acc_ys, minlength=len(unique_ids))
-        # Reconstruct obj_pixels-compatible structure (xs, ys lists) only for centroid use
         obj_centroids: dict[int, tuple[int, int, int, dict]] = {}  # id -> (cx, cy, count, bbox)
         for i, uid in enumerate(unique_ids):
             if counts[i] >= MIN_PIXELS:
-                cx_scaled = int(sum_xs[i] / counts[i] * coord_scale)
-                cy_scaled = int(sum_ys[i] / counts[i] * coord_scale)
                 mask = inverse == i
                 min_x = int(acc_xs[mask].min() * coord_scale)
                 max_x = int(acc_xs[mask].max() * coord_scale)
                 min_y = int(acc_ys[mask].min() * coord_scale)
                 max_y = int(acc_ys[mask].max() * coord_scale)
                 bbox = {"x": min_x, "y": min_y, "w": max_x - min_x, "h": max_y - min_y}
-                obj_centroids[int(uid)] = (cx_scaled, cy_scaled, int(counts[i]), bbox)
+                cx_bbox = (min_x + max_x) // 2
+                cy_bbox = (min_y + max_y) // 2
+                obj_centroids[int(uid)] = (cx_bbox, cy_bbox, int(counts[i]), bbox)
 
         hand = None
         detected_ids = []
