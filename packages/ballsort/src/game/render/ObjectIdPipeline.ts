@@ -90,6 +90,12 @@ export function generateColorMap(objectIds: number[]): {
     return { colorMap, idToColor };
 }
 
+/** Options for extractValidPixels */
+export interface ExtractValidPixelsOptions {
+    /** When true, relax blend rejection so edge/blended pixels are kept. Default: false. */
+    keepBlendedPixels?: boolean;
+}
+
 /**
  * Extract valid (non-blended) pixels from a rendered CV canvas.
  *
@@ -106,19 +112,25 @@ export function generateColorMap(objectIds: number[]): {
  *   6. 4-neighbor consistency check: reject pixels with fewer than 2 matching
  *      orthogonal neighbors. Out-of-bounds neighbors are skipped. Blended
  *      boundary pixels typically have 0–1 matches and are discarded.
- *   7. Pack accepted pixels as 7 bytes each: [x_lo,x_hi, y_lo,y_hi, r,g,b].
- *   8. Return as base64-encoded binary string.
+ *
+ * When keepBlendedPixels is true: relax alpha (128), per-channel tol (17), skip neighbor check.
  *
  * @param canvas    The game's WebGL canvas after ID-color rendering.
  * @param colorMap  Hex→id mapping produced by generateColorMap().
  * @param downsample  Downscale factor (default 4). Nearest-neighbor only.
+ * @param options   Optional. keepBlendedPixels: true to retain blended edge pixels.
  * @returns Base64-encoded packed pixel data.
  */
 export function extractValidPixels(
     canvas: HTMLCanvasElement,
     colorMap: ColorMap,
     downsample = 4,
+    options?: ExtractValidPixelsOptions,
 ): string {
+    const keepBlended = options?.keepBlendedPixels ?? false;
+    const alphaMin = keepBlended ? 128 : 200;
+    const channelTol = keepBlended ? Math.ceil(COLOR_GRID_STEP / 2) : COLOR_GRID_TOL; // 17 vs 1
+
     const w = Math.round(canvas.width / downsample);
     const h = Math.round(canvas.height / downsample);
 
@@ -153,7 +165,7 @@ export function extractValidPixels(
             const i = (y * w + x) * 4;
 
             // Skip transparent / semi-transparent edge pixels
-            if (imageData[i + 3] < 200) continue;
+            if (imageData[i + 3] < alphaMin) continue;
 
             const pr = imageData[i];
             const pg = imageData[i + 1];
@@ -175,10 +187,10 @@ export function extractValidPixels(
 
             // Per-channel grid validity check:
             // GPU-blended pixels land between grid points, so at least one channel
-            // will exceed COLOR_GRID_TOL even if Euclidean distance passes.
-            if (Math.abs(pr - snapR[si]) > COLOR_GRID_TOL ||
-                Math.abs(pg - snapG[si]) > COLOR_GRID_TOL ||
-                Math.abs(pb - snapB[si]) > COLOR_GRID_TOL) continue;
+            // will exceed channelTol even if Euclidean distance passes.
+            if (Math.abs(pr - snapR[si]) > channelTol ||
+                Math.abs(pg - snapG[si]) > channelTol ||
+                Math.abs(pb - snapB[si]) > channelTol) continue;
 
             snapIdx[y * w + x] = si;
         }
@@ -196,12 +208,15 @@ export function extractValidPixels(
             const si = snapIdx[y * w + x];
             if (si < 0) continue;
 
-            let matchCount = 0;
-            if (y > 0 && snapIdx[(y - 1) * w + x] === si) matchCount++;
-            if (y < h - 1 && snapIdx[(y + 1) * w + x] === si) matchCount++;
-            if (x > 0 && snapIdx[y * w + (x - 1)] === si) matchCount++;
-            if (x < w - 1 && snapIdx[y * w + (x + 1)] === si) matchCount++;
-            if (matchCount < 2) continue;
+            // 4-neighbor consistency: skip when keepBlendedPixels is false
+            if (!keepBlended) {
+                let matchCount = 0;
+                if (y > 0 && snapIdx[(y - 1) * w + x] === si) matchCount++;
+                if (y < h - 1 && snapIdx[(y + 1) * w + x] === si) matchCount++;
+                if (x > 0 && snapIdx[y * w + (x - 1)] === si) matchCount++;
+                if (x < w - 1 && snapIdx[y * w + (x + 1)] === si) matchCount++;
+                if (matchCount < 2) continue;
+            }
 
             const o = pixelCount * 7;
             packedBuf[o]     = x & 0xff;

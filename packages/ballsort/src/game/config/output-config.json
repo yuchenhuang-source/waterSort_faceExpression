@@ -1,4 +1,7 @@
 {
+  "cv": {
+    "keepBlendedPixels": true
+  },
   "difficulty": 1,
   "emptyTubeCount": 3,
   "jumpStepCount": 35,

@@ -133,6 +133,8 @@ export class Board extends Phaser.GameObjects.Container {
     /** Color-coded ID rendering using provided random color map. Returns restore function. */
     public applyIdRenderMode(idToColor: Map<number, number>): () => void {
         const savedLiquidVis = this.boardLiquidGraphics?.visible ?? false;
+        // Refresh liquid state so surface sprites have correct positions before we reuse them
+        this.drawAllLiquids();
         // Hide boardLiquidGraphics; each tube draws its own local liquid+ID Graphics
         if (this.boardLiquidGraphics) this.boardLiquidGraphics.setVisible(false);
 

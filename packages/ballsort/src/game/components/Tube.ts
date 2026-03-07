@@ -316,43 +316,49 @@ export class Tube extends Phaser.GameObjects.Container {
 
         const tubeColor = idToColor.get(this.id) ?? 0x888888;
 
-        // 1. Liquid: draw per-ball colors from idToColor as local Graphics behind tube textures
-        const maskW = this.currentWidth - 4;
-        const maskH = this.currentHeight - 4;
-        const radius = this.currentWidth / 2;
+        // 1. Liquid rects: draw per-ball ID colors into local Graphics, add to liquidContainer (same pipeline as normal)
         const liquidFill = this.scene.add.graphics();
-        this.drawLiquidIdLocal(liquidFill, idToColor);
-        this.add(liquidFill);
-        // Apply GeometryMask so liquid is clipped to tube shape
-        const wm = this.getWorldTransformMatrix();
-        const maskShape = this.scene.make.graphics({ add: false });
-        maskShape.fillStyle(0xffffff, 1);
-        maskShape.fillRoundedRect(wm.tx - maskW / 2, wm.ty - maskH / 2, maskW, maskH, { tl: 0, tr: 0, bl: radius, br: radius });
-        const liquidMask = new Phaser.Display.Masks.GeometryMask(this.scene, maskShape);
-        liquidFill.setMask(liquidMask);
+        const liquidInfo = this.drawLiquidIdLocal(liquidFill, idToColor);
+        this.liquidContainer.addAt(liquidFill, 0); // behind surface sprites, clipped by container's mask
 
-        // 2. Tube textures: tintFill to match the actual tube shape (same pattern as Ball.applyIdRenderMode)
-        //    tubeBodyImage renders on top of liquidFill, so tube walls appear over ball colors
+        // 2. Surface sprites: reuse existing liquidContainer sprites, only update tints to ID colors
+        //    (Board called drawAllLiquids before applyIdRenderMode, so positions are correct)
+        if (liquidInfo.topBallId !== null) {
+            const hideTopSurface = liquidInfo.isReturnWaterRise && this.addingBallColor !== null && this.addingBallHeight <= 0;
+            if (!hideTopSurface) {
+                this.surfaceSprite.setTintFill(idToColor.get(liquidInfo.topBallId) ?? 0x888888);
+            }
+        }
+        const isWaterRising = this.addingBallColor !== null;
+        if (!isWaterRising) {
+            for (let i = 0; i < liquidInfo.groupBoundaries.length; i++) {
+                const b = liquidInfo.groupBoundaries[i];
+                if (i < this.boundarySurfaceSprites.length) {
+                    this.boundarySurfaceSprites[i].setTintFill(idToColor.get(b.ballId) ?? 0x888888);
+                }
+            }
+        }
+        if (liquidInfo.addingTopBallId !== null && liquidInfo.addBoundaryY !== null && !liquidInfo.isReturnWaterRise && this.addingBlockBottomSurfaceSprite) {
+            this.addingBlockBottomSurfaceSprite.setTintFill(idToColor.get(liquidInfo.addingTopBallId) ?? 0x888888);
+        }
+
+        // 3. Tube textures: tintFill to match the actual tube shape
         this.tubeMouthImage.setTintFill(tubeColor);
         this.tubeMouthImage.setVisible(true);
         this.tubeBodyImage.setTintFill(tubeColor);
         this.tubeBodyImage.setVisible(true);
-        // Ensure tube images are above liquidFill in z-order
         this.bringToTop(this.tubeMouthImage);
         this.bringToTop(this.tubeBodyImage);
 
         this.highlightBodyImage.setVisible(false);
         this.highlightMouthImage.setVisible(false);
-        this.liquidContainer.setVisible(false);
+        // Keep liquidContainer visible - we're reusing its surface sprites with ID tints
         if (this.arucoImage) this.arucoImage.setVisible(false);
         if (this.candleImage) this.candleImage.setVisible(false);
         if (this.fireSprite) this.fireSprite.setVisible(false);
         this.balls.forEach(b => b.setVisible(false));
 
         return () => {
-            liquidFill.clearMask();
-            liquidMask.destroy();
-            maskShape.destroy();
             liquidFill.destroy();
             this.tubeBodyImage.clearTint();
             this.tubeBodyImage.setVisible(saved.bodyVis);
@@ -367,34 +373,82 @@ export class Tube extends Phaser.GameObjects.Container {
             if (this.arucoImage) this.arucoImage.setVisible(saved.arucoVis);
             if (this.candleImage) this.candleImage.setVisible(saved.candleVis);
             if (this.fireSprite) this.fireSprite.setVisible(saved.fireVis);
+            // Board restore will call requestLiquidRedraw -> drawAllLiquids -> updateSurfaceSprites to restore surface tints
         };
     }
 
     /**
      * Draw liquid blocks with ball colors (from idToColor) into a LOCAL-coordinate Graphics (a child of this Tube).
      * Used by applyIdRenderMode so the liquid renders ABOVE tubeFill in z-order.
+     * Returns boundary info so the caller can create matching liquid_surface sprites.
      */
-    private drawLiquidIdLocal(targetGraphics: Phaser.GameObjects.Graphics, idToColor: Map<number, number>): void {
+    private drawLiquidIdLocal(
+        targetGraphics: Phaser.GameObjects.Graphics,
+        idToColor: Map<number, number>,
+    ): {
+        currentY: number;
+        topBallId: number | null;
+        groupBoundaries: Array<{ y: number; ballId: number }>;
+        addBoundaryY: number | null;
+        addingTopBallId: number | null;
+        isReturnWaterRise: boolean;
+    } {
         const unitHeight = this.getUnitHeight();
         const bottomY = this.currentHeight / 2 - Tube.LIQUID_BOTTOM_BASE_OFFSET * (this.currentHeight / Config.GAME_CONFIG.PORTRAIT.TUBE_HEIGHT);
         const width = this.currentWidth;
         let ballsForLiquid = (this._topBallFloating && this.balls.length > 0) ? this.balls.slice(0, -1) : this.balls;
         if (this.addingBallColor !== null && this.balls.length > 0) ballsForLiquid = this.balls.slice(0, -1);
         let currentY = bottomY;
+        let topBallId: number | null = null;
+        const groupBoundaries: Array<{ y: number; ballId: number }> = [];
+
+        // Draw each ball individually (unique ID color per ball) and track color-group boundaries
+        // (boundary = where game color changes, same positions as drawLiquidBlocksTo boundaries)
         for (let i = 0; i < ballsForLiquid.length; i++) {
+            if (i > 0 && ballsForLiquid[i].color !== ballsForLiquid[i - 1].color) {
+                // currentY is now at TOP of ball i-1 = BOTTOM of ball i
+                groupBoundaries.push({ y: currentY, ballId: 100 + this.id * 10 + i });
+            }
             const ballId = 100 + this.id * 10 + i;
             const color = idToColor.get(ballId) ?? 0x888888;
             targetGraphics.fillStyle(color, 1);
             targetGraphics.fillRect(-width / 2, currentY - unitHeight, width, unitHeight + 2);
             currentY -= unitHeight;
+            topBallId = ballId;
         }
-        if (this.addingBallColor !== null && this.balls.length > 0 && this.addingBallHeight > 0) {
-            const topBallIdx = this.balls.length - 1;
-            const ballId = 100 + this.id * 10 + topBallIdx;
-            const color = idToColor.get(ballId) ?? 0x888888;
+
+        // Removing ball animation (missing in previous implementation)
+        if (this.removingBallColor !== null && this.removingBallHeight > 0) {
+            const removingBallId = 100 + this.id * 10 + this.balls.length;
+            // boundary at TOP of removing block, colored with lower static ball (mirrors drawLiquidBlocksTo)
+            groupBoundaries.push({ y: currentY - this.removingBallHeight, ballId: topBallId ?? removingBallId });
+            const color = idToColor.get(removingBallId) ?? 0x888888;
             targetGraphics.fillStyle(color, 1);
-            targetGraphics.fillRect(-width / 2, currentY - this.addingBallHeight, width, this.addingBallHeight + 2);
+            targetGraphics.fillRect(-width / 2, currentY - this.removingBallHeight, width, this.removingBallHeight + 2);
+            currentY -= this.removingBallHeight;
+            topBallId = removingBallId;
         }
+
+        let addBoundaryY: number | null = null;
+        let addingTopBallId: number | null = null;
+        if (this.addingBallColor !== null && this.balls.length > 0) {
+            addBoundaryY = currentY - this.addingBallHeight;
+            if (this._isReturnWaterRise) {
+                groupBoundaries.push({ y: addBoundaryY, ballId: topBallId ?? (100 + this.id * 10 + (this.balls.length - 1)) });
+            }
+            if (this.addingBallHeight > 0) {
+                const topBallIdx = this.balls.length - 1;
+                const ballId = 100 + this.id * 10 + topBallIdx;
+                addingTopBallId = ballId;
+                const color = idToColor.get(ballId) ?? 0x888888;
+                targetGraphics.fillStyle(color, 1);
+                targetGraphics.fillRect(-width / 2, currentY - this.addingBallHeight, width, this.addingBallHeight + 2);
+                currentY -= this.addingBallHeight;
+                topBallId = ballId;
+            }
+        }
+
+        return { currentY, topBallId, groupBoundaries, addBoundaryY, addingTopBallId, isReturnWaterRise: this._isReturnWaterRise };
     }
 
     /** Draw liquid blocks with ball IDs for color-coded CV detection (world-coord, for external use). */
@@ -570,7 +624,8 @@ export class Tube extends Phaser.GameObjects.Container {
                     const w = this.currentWidth;
                     const fw = (s.frame?.width ?? s.width) || 1;
                     const fh = (s.frame?.height ?? s.height) || 1;
-                    s.setDisplaySize(w, Math.max(8, (fh / fw) * w));
+                    // 交界处弧线需更高才能明显，用 1.5x 高度突出曲率
+                    s.setDisplaySize(w, Math.max(12, (fh / fw) * w * 1.5));
                 }
                 for (let i = boundaries.length; i < this.boundarySurfaceSprites.length; i++)
                     this.boundarySurfaceSprites[i].setVisible(false);
@@ -737,7 +792,8 @@ export class Tube extends Phaser.GameObjects.Container {
                 const frame = sprite.frame;
                 const fw = (frame?.width ?? sprite.width) || 1;
                 const fh = (frame?.height ?? sprite.height) || 1;
-                const h = Math.max(8, (fh / fw) * w);
+                // 交界处弧线需更高才能明显，用 1.5x 高度突出曲率
+                const h = Math.max(12, (fh / fw) * w * 1.5);
                 sprite.setDisplaySize(w, h);
             }
             // 水位上升时：非归位用专用 sprite 显示加入块下边缘；归位时用 returnBoundarySurfaceSprite（在动画开始时已添加）
@@ -1064,7 +1120,7 @@ export class Tube extends Phaser.GameObjects.Container {
                 const frame = this.returnBoundarySurfaceSprite.frame;
                 const fw = (frame?.width ?? this.returnBoundarySurfaceSprite.width) || 1;
                 const fh = (frame?.height ?? this.returnBoundarySurfaceSprite.height) || 1;
-                const h = Math.max(8, (fh / fw) * w);
+                const h = Math.max(12, (fh / fw) * w * 1.5);
                 this.returnBoundarySurfaceSprite.setDisplaySize(w, h);
                 this.returnBoundarySurfaceSprite.setDepth(1);
                 this.liquidContainer.add(this.returnBoundarySurfaceSprite);

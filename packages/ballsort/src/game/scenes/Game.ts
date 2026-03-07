@@ -4,7 +4,7 @@ import { Board } from '../components/Board';
 import { Config } from '../constants/GameConstants';
 import { isPerfEnabled, initPerf, recordBoardUpdate, tickPerf } from '../../utils/perfLogger';
 import download from './constants/download';
-import { getOutputConfigAsync } from '../../utils/outputConfigLoader';
+import { getOutputConfigAsync, getOutputConfigValue } from '../../utils/outputConfigLoader';
 import { getDownloadText } from '../../utils/i18n';
 import { getCachedPuzzle } from '../../utils/puzzleCache';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
@@ -513,7 +513,9 @@ export class Game extends Scene
         // extractValidPixels: downsamples 4x with nearest-neighbor, rejects
         // semi-transparent edges (alpha < 200), snaps to nearest grid color,
         // and applies per-channel tolerance to discard GPU-blended boundary pixels.
-        const pixels = extractValidPixels(this.game.canvas, colorMap);
+        // Set cv.keepBlendedPixels: true in output-config.json to retain blended edge pixels.
+        const keepBlended = getOutputConfigValue<boolean>('cv.keepBlendedPixels', false);
+        const pixels = extractValidPixels(this.game.canvas, colorMap, 4, { keepBlendedPixels: keepBlended });
 
         // Restore everything
         restoreBoard();

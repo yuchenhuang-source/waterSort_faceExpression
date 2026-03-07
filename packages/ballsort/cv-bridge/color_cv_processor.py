@@ -14,11 +14,23 @@ ID ranges (from game):
 """
 import base64
 import io
+import json
 import math
 import time
+from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+# #region agent log
+_DEBUG_LOG = "/Users/yuchenhuang/Downloads/playables/ballsort/ballsort-multi--液体球效果/.cursor/debug-701a47.log"
+def _log_boundary(tube_id: int, idx: int, y: float, span: int, n: int, bbox_w: int):
+    try:
+        with open(_DEBUG_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"sessionId":"701a47","location":"color_cv_processor.py","message":"CV-BOUNDARY","data":{"tubeId":tube_id,"boundaryIdx":idx,"y":int(y),"span":span,"n":n,"bbox_w":bbox_w},"timestamp":int(time.time()*1000)}) + "\n")
+    except Exception:
+        pass
+# #endregion
 
 try:
     from PIL import Image
@@ -193,6 +205,7 @@ def process_pixel_data(pixel_frame: dict, color_map: dict | None = None, active_
         unique_ids, inverse, counts = np.unique(acc_ids, return_inverse=True, return_counts=True)
 
         obj_centroids: dict[int, tuple[int, int, int, dict]] = {}
+        ball_boundaries: list[tuple[int, int, float, int, int, int, int, int]] = []  # tubeId, slot, cy, span_top, n_top, span_bottom, n_bottom, bbox_w
         for i, uid in enumerate(unique_ids):
             if counts[i] >= MIN_PIXELS:
                 mask = inverse == i
@@ -204,6 +217,31 @@ def process_pixel_data(pixel_frame: dict, color_map: dict | None = None, active_
                 cx_bbox = (min_x + max_x) // 2
                 cy_bbox = (min_y + max_y) // 2
                 obj_centroids[int(uid)] = (cx_bbox, cy_bbox, int(counts[i]), bbox)
+                # #region agent log - boundary pixels (液体交界处)
+                if 100 <= int(uid) < 500:
+                    tube_id, slot = divmod(int(uid) - 100, 10)
+                    top_y = float(acc_ys[mask].min())
+                    bottom_y = float(acc_ys[mask].max())
+                    mask_t = mask & (np.abs(acc_ys - top_y) < 0.5)
+                    mask_b = mask & (np.abs(acc_ys - bottom_y) < 0.5)
+                    xs_t, xs_b = acc_xs[mask_t], acc_xs[mask_b]
+                    span_t = int(float(xs_t.max()) - float(xs_t.min()) + 1) if len(xs_t) > 0 else 0
+                    span_b = int(float(xs_b.max()) - float(xs_b.min()) + 1) if len(xs_b) > 0 else 0
+                    bw = int(float(acc_xs[mask].max()) - float(acc_xs[mask].min()) + 1)
+                    ball_boundaries.append((tube_id, slot, float(cy_bbox), span_t, len(xs_t), span_b, len(xs_b), bw))
+                # #endregion
+
+        # #region agent log - log each boundary between two balls (交界处)
+        if ball_boundaries:
+            by_tube: dict[int, list] = {}
+            for t, s, cy, st, nt, sb, nb, bw in ball_boundaries:
+                by_tube.setdefault(t, []).append((s, cy, st, nt, sb, nb, bw))
+            for t, balls in by_tube.items():
+                balls.sort(key=lambda x: x[1])  # by cy asc: balls[0]=top, balls[-1]=bottom
+                for idx in range(len(balls) - 1):
+                    _, cy, _, _, span_bot, n_bot, bbox_w = balls[idx]
+                    _log_boundary(t, idx, cy, span_bot, n_bot, bbox_w)
+        # #endregion
 
         hand = None
         detected_ids = []
@@ -332,6 +370,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
         acc_ys = ys_all[accepted].astype(np.float32)  # (M,)
         unique_ids, inverse, counts = np.unique(acc_ids, return_inverse=True, return_counts=True)
         obj_centroids: dict[int, tuple[int, int, int, dict]] = {}  # id -> (cx, cy, count, bbox)
+        ball_boundaries: list[tuple[int, int, float, int, int, int, int, int]] = []
         for i, uid in enumerate(unique_ids):
             if counts[i] >= MIN_PIXELS:
                 mask = inverse == i
@@ -343,6 +382,31 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
                 cx_bbox = (min_x + max_x) // 2
                 cy_bbox = (min_y + max_y) // 2
                 obj_centroids[int(uid)] = (cx_bbox, cy_bbox, int(counts[i]), bbox)
+                # #region agent log - boundary pixels (液体交界处)
+                if 100 <= int(uid) < 500:
+                    tube_id, slot = divmod(int(uid) - 100, 10)
+                    top_y = float(acc_ys[mask].min())
+                    bottom_y = float(acc_ys[mask].max())
+                    mask_t = mask & (np.abs(acc_ys - top_y) < 0.5)
+                    mask_b = mask & (np.abs(acc_ys - bottom_y) < 0.5)
+                    xs_t, xs_b = acc_xs[mask_t], acc_xs[mask_b]
+                    span_t = int(float(xs_t.max()) - float(xs_t.min()) + 1) if len(xs_t) > 0 else 0
+                    span_b = int(float(xs_b.max()) - float(xs_b.min()) + 1) if len(xs_b) > 0 else 0
+                    bw = int(float(acc_xs[mask].max()) - float(acc_xs[mask].min()) + 1)
+                    ball_boundaries.append((tube_id, slot, float(cy_bbox), span_t, len(xs_t), span_b, len(xs_b), bw))
+                # #endregion
+
+        # #region agent log - log each boundary between two balls (交界处)
+        if ball_boundaries:
+            by_tube: dict[int, list] = {}
+            for t, s, cy, st, nt, sb, nb, bw in ball_boundaries:
+                by_tube.setdefault(t, []).append((s, cy, st, nt, sb, nb, bw))
+            for t, balls in by_tube.items():
+                balls.sort(key=lambda x: x[1])
+                for idx in range(len(balls) - 1):
+                    _, cy, _, _, span_bot, n_bot, bbox_w = balls[idx]
+                    _log_boundary(t, idx, cy, span_bot, n_bot, bbox_w)
+        # #endregion
 
         hand = None
         detected_ids = []
