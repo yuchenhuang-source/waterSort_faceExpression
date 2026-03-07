@@ -414,8 +414,11 @@ export class Game extends Scene
             const response = await bridge.sendFrameAndWait({ pixels, width, height }, colorMap, activeIds);
             this.cvStepCount++;
             const detections = response.detections || {};
-            const tubes = (detections.tubes || []) as Array<{ id: number; x: number; y: number }>;
-            const balls = (detections.balls || []) as Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }>;
+            const objects = (detections.objects || []) as Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }>;
+            const tubes = objects.filter(o => o.id < 100);
+            const balls = objects
+                .filter(o => o.id >= 100 && o.id < 500)
+                .map(o => ({ ...o, tubeId: Math.floor((o.id - 100) / 10), index: (o.id - 100) % 10 }));
             if (this.cvAutoStepRunning) {
                 this.cvDetectionHistory.push({
                     timestamp: Date.now(),

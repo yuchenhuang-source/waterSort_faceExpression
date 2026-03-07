@@ -14,23 +14,11 @@ ID ranges (from game):
 """
 import base64
 import io
-import json
 import math
 import time
-from pathlib import Path
 from typing import Any
 
 import numpy as np
-
-# #region agent log
-_DEBUG_LOG = "/Users/yuchenhuang/Downloads/playables/ballsort/ballsort-multi--液体球效果/.cursor/debug-701a47.log"
-def _log_boundary(tube_id: int, idx: int, y: float, span: int, n: int, bbox_w: int):
-    try:
-        with open(_DEBUG_LOG, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"sessionId":"701a47","location":"color_cv_processor.py","message":"CV-BOUNDARY","data":{"tubeId":tube_id,"boundaryIdx":idx,"y":int(y),"span":span,"n":n,"bbox_w":bbox_w},"timestamp":int(time.time()*1000)}) + "\n")
-    except Exception:
-        pass
-# #endregion
 
 try:
     from PIL import Image
@@ -46,18 +34,7 @@ _prev_objects: dict[int, dict[str, float]] = {}
 
 
 def _obj_label(obj_id: int) -> str:
-    """Return display label for object id."""
-    if obj_id < 100:
-        return f"T{obj_id}"
-    if obj_id < 500:
-        tube_id, slot = divmod(obj_id - 100, 10)
-        return f"B{obj_id}[{tube_id}:{slot}]"
-    if obj_id == 500:
-        return "HAND"
-    if obj_id == 501:
-        return "icon"
-    if obj_id == 502:
-        return "download"
+    """Return display label for object id (generic)."""
     return f"id{obj_id}"
 
 
@@ -67,15 +44,10 @@ def _add_frame_diffs(result: dict[str, Any]) -> None:
     position/area changes. Update _prev_objects for next frame.
     """
     current: dict[int, dict[str, float]] = {}
-    for obj in result.get("tubes", []) + result.get("balls", []) + result.get("buttons", []):
+    for obj in result.get("objects", []):
         b = obj.get("bbox") or {}
         area = (b.get("w", 0) or 0) * (b.get("h", 0) or 0)
         current[obj["id"]] = {"x": float(obj.get("x", 0)), "y": float(obj.get("y", 0)), "area": float(area)}
-    if result.get("hand"):
-        h = result["hand"]
-        b = h.get("bbox") or {}
-        area = (b.get("w", 0) or 0) * (b.get("h", 0) or 0)
-        current[h["id"]] = {"x": float(h.get("x", 0)), "y": float(h.get("y", 0)), "area": float(area)}
 
     diffs: list[dict[str, Any]] = []
     for oid, curr in current.items():
@@ -152,7 +124,7 @@ def process_pixel_data(pixel_frame: dict, color_map: dict | None = None, active_
     pixels is base64-encoded binary; each pixel is 7 bytes: x_lo, x_hi, y_lo, y_hi, r, g, b.
     """
     t0 = time.perf_counter()
-    result: dict[str, Any] = {"tubes": [], "balls": [], "buttons": []}
+    result: dict[str, Any] = {"objects": []}
 
     if not color_map:
         result["status"] = "error"
@@ -205,7 +177,6 @@ def process_pixel_data(pixel_frame: dict, color_map: dict | None = None, active_
         unique_ids, inverse, counts = np.unique(acc_ids, return_inverse=True, return_counts=True)
 
         obj_centroids: dict[int, tuple[int, int, int, dict]] = {}
-        ball_boundaries: list[tuple[int, int, float, int, int, int, int, int]] = []  # tubeId, slot, cy, span_top, n_top, span_bottom, n_bottom, bbox_w
         for i, uid in enumerate(unique_ids):
             if counts[i] >= MIN_PIXELS:
                 mask = inverse == i
@@ -217,69 +188,24 @@ def process_pixel_data(pixel_frame: dict, color_map: dict | None = None, active_
                 cx_bbox = (min_x + max_x) // 2
                 cy_bbox = (min_y + max_y) // 2
                 obj_centroids[int(uid)] = (cx_bbox, cy_bbox, int(counts[i]), bbox)
-                # #region agent log - boundary pixels (液体交界处)
-                if 100 <= int(uid) < 500:
-                    tube_id, slot = divmod(int(uid) - 100, 10)
-                    top_y = float(acc_ys[mask].min())
-                    bottom_y = float(acc_ys[mask].max())
-                    mask_t = mask & (np.abs(acc_ys - top_y) < 0.5)
-                    mask_b = mask & (np.abs(acc_ys - bottom_y) < 0.5)
-                    xs_t, xs_b = acc_xs[mask_t], acc_xs[mask_b]
-                    span_t = int(float(xs_t.max()) - float(xs_t.min()) + 1) if len(xs_t) > 0 else 0
-                    span_b = int(float(xs_b.max()) - float(xs_b.min()) + 1) if len(xs_b) > 0 else 0
-                    bw = int(float(acc_xs[mask].max()) - float(acc_xs[mask].min()) + 1)
-                    ball_boundaries.append((tube_id, slot, float(cy_bbox), span_t, len(xs_t), span_b, len(xs_b), bw))
-                # #endregion
 
-        # #region agent log - log each boundary between two balls (交界处)
-        if ball_boundaries:
-            by_tube: dict[int, list] = {}
-            for t, s, cy, st, nt, sb, nb, bw in ball_boundaries:
-                by_tube.setdefault(t, []).append((s, cy, st, nt, sb, nb, bw))
-            for t, balls in by_tube.items():
-                balls.sort(key=lambda x: x[1])  # by cy asc: balls[0]=top, balls[-1]=bottom
-                for idx in range(len(balls) - 1):
-                    _, cy, _, _, span_bot, n_bot, bbox_w = balls[idx]
-                    _log_boundary(t, idx, cy, span_bot, n_bot, bbox_w)
-        # #endregion
-
-        hand = None
         detected_ids = []
         for obj_id, (cx, cy, pixel_count, bbox) in obj_centroids.items():
             detected_ids.append(obj_id)
             obj = {"id": obj_id, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox}
-            if obj_id < 100:
-                result["tubes"].append(obj)
-            elif obj_id < 500:
-                tube_id, slot_index = divmod(obj_id - 100, 10)
-                result["balls"].append({"id": obj_id, "tubeId": tube_id, "index": slot_index, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
-            elif obj_id == 500:
-                hand = {"id": 500, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox}
-            elif obj_id == 501:
-                result["buttons"].append({"id": 501, "label": "icon", "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
-            elif obj_id == 502:
-                result["buttons"].append({"id": 502, "label": "download", "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
-
-        if hand:
-            result["hand"] = hand
+            result["objects"].append(obj)
 
         if active_ids is not None:
             active_set = set(active_ids)
-            result["tubes"] = [t for t in result["tubes"] if t["id"] in active_set]
-            result["balls"] = [b for b in result["balls"] if b["id"] in active_set]
-            result["buttons"] = [b for b in result["buttons"] if b["id"] in active_set]
-            if hand and hand["id"] not in active_set:
-                result.pop("hand", None)
+            result["objects"] = [o for o in result["objects"] if o["id"] in active_set]
 
         result["detectedIds"] = sorted(detected_ids)
         result["status"] = "ok"
         _add_frame_diffs(result)
 
         print(
-            f"[CV-PIXELS] tubes={len(result['tubes'])} "
-            f"balls={len(result['balls'])} "
-            f"hand={'yes' if result.get('hand') else 'no'} "
-            f"ids={sorted(t['id'] for t in result['tubes'])+sorted(b['id'] for b in result['balls'])}"
+            f"[CV-PIXELS] objects={len(result['objects'])} "
+            f"ids={sorted(o['id'] for o in result['objects'])}"
         )
 
     except Exception as e:
@@ -299,7 +225,7 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
     Returns: { status, tubes, balls, hand, processingMs, detectedIds }
     """
     t0 = time.perf_counter()
-    result: dict[str, Any] = {"tubes": [], "balls": [], "buttons": []}
+    result: dict[str, Any] = {"objects": []}
 
     if not HAS_PIL:
         result["status"] = "error"
@@ -370,7 +296,6 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
         acc_ys = ys_all[accepted].astype(np.float32)  # (M,)
         unique_ids, inverse, counts = np.unique(acc_ids, return_inverse=True, return_counts=True)
         obj_centroids: dict[int, tuple[int, int, int, dict]] = {}  # id -> (cx, cy, count, bbox)
-        ball_boundaries: list[tuple[int, int, float, int, int, int, int, int]] = []
         for i, uid in enumerate(unique_ids):
             if counts[i] >= MIN_PIXELS:
                 mask = inverse == i
@@ -382,80 +307,24 @@ def process_color_coded_frame(frame_base64: str, color_map: dict | None = None, 
                 cx_bbox = (min_x + max_x) // 2
                 cy_bbox = (min_y + max_y) // 2
                 obj_centroids[int(uid)] = (cx_bbox, cy_bbox, int(counts[i]), bbox)
-                # #region agent log - boundary pixels (液体交界处)
-                if 100 <= int(uid) < 500:
-                    tube_id, slot = divmod(int(uid) - 100, 10)
-                    top_y = float(acc_ys[mask].min())
-                    bottom_y = float(acc_ys[mask].max())
-                    mask_t = mask & (np.abs(acc_ys - top_y) < 0.5)
-                    mask_b = mask & (np.abs(acc_ys - bottom_y) < 0.5)
-                    xs_t, xs_b = acc_xs[mask_t], acc_xs[mask_b]
-                    span_t = int(float(xs_t.max()) - float(xs_t.min()) + 1) if len(xs_t) > 0 else 0
-                    span_b = int(float(xs_b.max()) - float(xs_b.min()) + 1) if len(xs_b) > 0 else 0
-                    bw = int(float(acc_xs[mask].max()) - float(acc_xs[mask].min()) + 1)
-                    ball_boundaries.append((tube_id, slot, float(cy_bbox), span_t, len(xs_t), span_b, len(xs_b), bw))
-                # #endregion
 
-        # #region agent log - log each boundary between two balls (交界处)
-        if ball_boundaries:
-            by_tube: dict[int, list] = {}
-            for t, s, cy, st, nt, sb, nb, bw in ball_boundaries:
-                by_tube.setdefault(t, []).append((s, cy, st, nt, sb, nb, bw))
-            for t, balls in by_tube.items():
-                balls.sort(key=lambda x: x[1])
-                for idx in range(len(balls) - 1):
-                    _, cy, _, _, span_bot, n_bot, bbox_w = balls[idx]
-                    _log_boundary(t, idx, cy, span_bot, n_bot, bbox_w)
-        # #endregion
-
-        hand = None
         detected_ids = []
         for obj_id, (cx, cy, pixel_count, bbox) in obj_centroids.items():
             detected_ids.append(obj_id)
+            obj = {"id": obj_id, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox}
+            result["objects"].append(obj)
 
-            if obj_id < 100:
-                # Tube (0-13)
-                result["tubes"].append({"id": obj_id, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
-            elif obj_id < 500:
-                # Ball: 100 + tubeId*10 + slotIndex (range 100-237)
-                tube_id, slot_index = divmod(obj_id - 100, 10)
-                result["balls"].append({
-                    "id": obj_id,
-                    "tubeId": tube_id,
-                    "index": slot_index,
-                    "x": cx,
-                    "y": cy,
-                    "pixels": pixel_count,
-                    "bbox": bbox,
-                })
-            elif obj_id == 500:
-                hand = {"id": 500, "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox}
-            elif obj_id == 501:
-                result["buttons"].append({"id": 501, "label": "icon", "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
-            elif obj_id == 502:
-                result["buttons"].append({"id": 502, "label": "download", "x": cx, "y": cy, "pixels": pixel_count, "bbox": bbox})
-
-        if hand:
-            result["hand"] = hand
-
-        # Filter to only active IDs if provided by the game
         if active_ids is not None:
             active_set = set(active_ids)
-            result["tubes"] = [t for t in result["tubes"] if t["id"] in active_set]
-            result["balls"] = [b for b in result["balls"] if b["id"] in active_set]
-            result["buttons"] = [b for b in result["buttons"] if b["id"] in active_set]
-            if hand and hand["id"] not in active_set:
-                result.pop("hand", None)
+            result["objects"] = [o for o in result["objects"] if o["id"] in active_set]
 
         result["detectedIds"] = sorted(detected_ids)
         result["status"] = "ok"
         _add_frame_diffs(result)
 
         print(
-            f"[CV] tubes={len(result['tubes'])} "
-            f"balls={len(result['balls'])} "
-            f"hand={'yes' if result.get('hand') else 'no'} "
-            f"ids={sorted(t['id'] for t in result['tubes'])+sorted(b['id'] for b in result['balls'])}"
+            f"[CV] objects={len(result['objects'])} "
+            f"ids={sorted(o['id'] for o in result['objects'])}"
         )
 
     except base64.binascii.Error as e:

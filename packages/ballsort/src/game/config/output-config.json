@@ -1,6 +1,6 @@
 {
   "cv": {
-    "keepBlendedPixels": true
+    "keepBlendedPixels": false
   },
   "difficulty": 1,
   "emptyTubeCount": 3,

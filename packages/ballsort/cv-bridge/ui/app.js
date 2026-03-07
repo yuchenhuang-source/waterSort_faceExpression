@@ -74,10 +74,16 @@ function connect() {
         frameCount++;
         const frame = data.frame;
         const detections = data.detections || {};
-        const tubes = detections.tubes || [];
-        const balls = detections.balls || [];
-        const hand = detections.hand || null;
-        const buttons = detections.buttons || [];
+        const rawObjects = detections.objects || [];
+        const tubes = rawObjects.filter(o => o.id < 100);
+        const balls = rawObjects
+          .filter(o => o.id >= 100 && o.id < 500)
+          .map(o => ({ ...o, tubeId: Math.floor((o.id - 100) / 10), index: (o.id - 100) % 10 }));
+        const hand = rawObjects.find(o => o.id === 500) || null;
+        const buttons = rawObjects.filter(o => o.id >= 501).map(o => ({
+          ...o,
+          label: o.id === 501 ? 'icon' : o.id === 502 ? 'download' : `id${o.id}`
+        }));
         const tubeIds = tubes.map(t => t.id).join(',');
         const ballIds = balls.map(b => b.id).join(',');
         if (frame) {
