@@ -124,8 +124,7 @@ export class Board extends Phaser.GameObjects.Container {
         const savedLiquidVis = this.boardLiquidGraphics?.visible ?? false;
         // Refresh liquid state so surface sprites have correct positions before we reuse them
         this.drawAllLiquids();
-        // Hide boardLiquidGraphics; each tube draws its own local liquid+ID Graphics
-        if (this.boardLiquidGraphics) this.boardLiquidGraphics.setVisible(false);
+        // boardLiquidGraphics 保持显示（不隐藏合并液体）
 
         let handRestore: (() => void) | null = null;
         if (this.hand) {

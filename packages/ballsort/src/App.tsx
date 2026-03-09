@@ -7,7 +7,8 @@ import { Start } from './viewable-handler';
 import { EventBus } from './game/EventBus';
 import { getInitialLevelFromURL, setPersistentSelectedLevel, isLevelSelectionReady } from './game/levelSelection';
 import { pregeneratePuzzles } from './utils/puzzleCache';
-import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from './game/cvRecordEvents';
+// CV 录制功能已暂时注释。恢复时取消下方注释。
+// import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from './game/cvRecordEvents';
 
 // 导入背景图片
 import bgV from './assets/bg-v.png';
@@ -31,6 +32,8 @@ function App() {
         pregeneratePuzzles();
     }, []);
 
+    // CV 录制功能已暂时注释：不再监听 cv-record-play/pause/end、cv-capture-frame，不再转发 CV_RECORD_STATUS。恢复时取消下方注释。
+    /*
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const isCV = new URLSearchParams(window.location.search).get('cv') === '1';
@@ -61,6 +64,7 @@ function App() {
             EventBus.off(CV_RECORD_STATUS, unsub);
         };
     }, []);
+    */
 
     useEffect(() => {
         const onGameReady = () => {

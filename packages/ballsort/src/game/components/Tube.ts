@@ -330,12 +330,7 @@ export class Tube extends Phaser.GameObjects.Container {
         this.bringToTop(this.tubeMouthImage);
         this.bringToTop(this.tubeBodyImage);
 
-        this.highlightBodyImage.setVisible(false);
-        this.highlightMouthImage.setVisible(false);
-        // Keep liquidContainer visible - we're reusing its surface sprites with ID tints
-        if (this.candleImage) this.candleImage.setVisible(false);
-        if (this.fireSprite) this.fireSprite.setVisible(false);
-        this.balls.forEach(b => b.setVisible(false));
+        // highlightBodyImage, highlightMouthImage, candleImage, fireSprite, balls 保持显示（不隐藏）
 
         return () => {
             liquidFill.destroy();

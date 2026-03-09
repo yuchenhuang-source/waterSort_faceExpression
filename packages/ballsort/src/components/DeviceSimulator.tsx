@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ConstantsEditor } from './ConstantsEditor';
-import CVRecordControls from './CVRecordControls';
+// CV 录制功能已暂时注释。恢复时取消下方注释。
+// import CVRecordControls from './CVRecordControls';
 import type { ColorMap } from '../game/render/ObjectIdPipeline';
 import './DeviceSimulator.css';
 
@@ -138,15 +139,16 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
       if (e.data?.type === 'icon-debug' && e.data.visibleRect && e.data.iconRect && typeof e.data.inBounds === 'boolean') {
         setIconDebug({ visibleRect: e.data.visibleRect, iconRect: e.data.iconRect, inBounds: e.data.inBounds });
       }
-      if (e.data?.type === 'cv-record-export-complete' && typeof e.data.summary === 'string') {
-        console.log('[CV-RECORD] export completed (from iframe)', e.data.summary);
-      }
-      if (e.data?.type === 'cv-record-debug') {
-        console.log('[CV-RECORD] debug (from iframe)', e.data.msg, e.data.connected);
-      }
-      if (e.data?.type === 'cv-frame-data' && e.data.pixels && e.data.width && e.data.height) {
-        downloadCVFrameAsPng(e.data as { pixels: string; width: number; height: number; colorMap: ColorMap });
-      }
+      // CV 录制功能已暂时注释
+      // if (e.data?.type === 'cv-record-export-complete' && typeof e.data.summary === 'string') {
+      //   console.log('[CV-RECORD] export completed (from iframe)', e.data.summary);
+      // }
+      // if (e.data?.type === 'cv-record-debug') {
+      //   console.log('[CV-RECORD] debug (from iframe)', e.data.msg, e.data.connected);
+      // }
+      // if (e.data?.type === 'cv-frame-data' && e.data.pixels && e.data.width && e.data.height) {
+      //   downloadCVFrameAsPng(e.data as { pixels: string; width: number; height: number; colorMap: ColorMap });
+      // }
     };
     window.addEventListener('message', handler);
     const poll = () => {
@@ -296,8 +298,9 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
             ? `Icon: (${Math.round(iconDebug.iconRect.x)},${Math.round(iconDebug.iconRect.y)}) ${Math.round(iconDebug.iconRect.w)}×${Math.round(iconDebug.iconRect.h)} | Visible: (${Math.round(iconDebug.visibleRect.x)},${Math.round(iconDebug.visibleRect.y)}) ${Math.round(iconDebug.visibleRect.width)}×${Math.round(iconDebug.visibleRect.height)} | inBounds: ${String(iconDebug.inBounds)}`
             : 'icon-debug: waiting'}
         </span>
-        {isCVMode && <CVRecordControls iframeRef={iframeRef} />}
-        {isCVMode && (
+        {/* CV 录制功能已暂时注释：Play/Pause/End 和 Download CV Frame 按钮 */}
+        {/* {isCVMode && <CVRecordControls iframeRef={iframeRef} />} */}
+        {/* {isCVMode && (
           <button
             type="button"
             className="sim-cv-download-btn"
@@ -306,7 +309,7 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
           >
             ⬇ Download CV Frame
           </button>
-        )}
+        )} */}
       </div>
       <div className={`device-simulator-body ${showConstantsEditor ? 'has-editor' : ''}`}>
         <div className="device-simulator-frame">

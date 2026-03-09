@@ -11,8 +11,9 @@ import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 import { isCVModeEnabled, getCVBridge, destroyCVBridge } from '../cv-bridge/CVBridge';
 import { generateColorMap, extractValidPixels, ColorMap } from '../render/ObjectIdPipeline';
-import JSZip from 'jszip';
-import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from '../cvRecordEvents';
+// CV 录制功能已暂时注释。按 S 单步发送帧仍可用。恢复时取消下方注释并恢复 App/DeviceSimulator/CVRecordControls 中的相关代码。
+// import JSZip from 'jszip';
+// import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from '../cvRecordEvents';
 
 // 配置类型定义
 interface GameConfig {
@@ -217,19 +218,17 @@ export class Game extends Scene
 
         this.waitingForCV = true;
 
-        EventBus.on(CV_RECORD_PLAY, this.onCVRecordPlay, this);
-        EventBus.on(CV_RECORD_PAUSE, this.onCVRecordPause, this);
-        EventBus.on(CV_RECORD_END, this.onCVRecordEnd, this);
+        // CV 录制已暂时注释：Play/Pause/End 按钮不再注册
+        // EventBus.on(CV_RECORD_PLAY, this.onCVRecordPlay, this);
+        // EventBus.on(CV_RECORD_PAUSE, this.onCVRecordPause, this);
+        // EventBus.on(CV_RECORD_END, this.onCVRecordEnd, this);
 
         bridge.connect().then(() => {
-            if (autoMode) {
-                if (this.cvStepText) this.cvStepText.setText('CV: 点击播放开始');
-            } else {
-                if (this.cvStepText) this.cvStepText.setText('CV: Paused - Press S to step');
-                const handler = (e: KeyboardEvent) => { if (e.key === 's' || e.key === 'S') this.stepOneFrame(); };
-                document.addEventListener('keydown', handler);
-                this.events.once('shutdown', () => document.removeEventListener('keydown', handler));
-            }
+            // 录制已注释，autoMode 与普通模式均使用按 S 单步
+            if (this.cvStepText) this.cvStepText.setText(autoMode ? 'CV: Paused - Press S to step (录制已暂时关闭)' : 'CV: Paused - Press S to step');
+            const handler = (e: KeyboardEvent) => { if (e.key === 's' || e.key === 'S') this.stepOneFrame(); };
+            document.addEventListener('keydown', handler);
+            this.events.once('shutdown', () => document.removeEventListener('keydown', handler));
             this.scene.pause();
         }).catch((err) => {
             console.error('[CV] Failed to connect', err);
@@ -238,9 +237,9 @@ export class Game extends Scene
 
         this.events.once('shutdown', () => {
             this.cvAutoStepRunning = false;
-            EventBus.off(CV_RECORD_PLAY, this.onCVRecordPlay, this);
-            EventBus.off(CV_RECORD_PAUSE, this.onCVRecordPause, this);
-            EventBus.off(CV_RECORD_END, this.onCVRecordEnd, this);
+            // EventBus.off(CV_RECORD_PLAY, this.onCVRecordPlay, this);
+            // EventBus.off(CV_RECORD_PAUSE, this.onCVRecordPause, this);
+            // EventBus.off(CV_RECORD_END, this.onCVRecordEnd, this);
             destroyCVBridge();
             if (this.cvStepText) {
                 this.cvStepText.destroy();
@@ -249,6 +248,7 @@ export class Game extends Scene
         });
     }
 
+    /* CV 录制 handlers 已暂时注释
     private onCVRecordPlay = () => {
         const connected = getCVBridge(this.game).isConnected();
         console.log('[CV-RECORD] onCVRecordPlay called, bridge connected:', connected);
@@ -284,7 +284,9 @@ export class Game extends Scene
     private onCVRecordEnd = () => {
         this.exportCsvAndZip();
     };
+    */
 
+    /* exportCsvAndZip 已暂时注释
     private exportCsvAndZip() {
         this.cvAutoStepRunning = false;
         this.waitingForCV = true;
@@ -359,9 +361,11 @@ export class Game extends Scene
             this.cvDetectionHistory = [];
         }, 250);
     }
+    */
 
     private cvAutoStepRunning = false;
 
+    /* startAutoStepLoop 已暂时注释
     private startAutoStepLoop() {
         this.cvAutoStepRunning = true;
         const loop = async () => {
@@ -372,6 +376,7 @@ export class Game extends Scene
         };
         loop();
     }
+    */
 
     private async stepOneFrame() {
         const bridge = getCVBridge(this.game);
@@ -399,14 +404,15 @@ export class Game extends Scene
             const balls = objects
                 .filter(o => o.id >= 100 && o.id < 500)
                 .map(o => ({ ...o, tubeId: Math.floor((o.id - 100) / 10), index: (o.id - 100) % 10 }));
-            if (this.cvAutoStepRunning) {
-                this.cvDetectionHistory.push({
-                    timestamp: Date.now(),
-                    tubes: tubes.map(t => ({ id: t.id, x: t.x, y: t.y })),
-                    balls: balls.map(b => ({ id: b.id, x: b.x, y: b.y, tubeId: b.tubeId, index: b.index }))
-                });
-                console.log('[CV-RECORD] frame', this.cvDetectionHistory.length);
-            }
+            // CV 录制已暂时注释：不再 push 到 cvDetectionHistory
+            // if (this.cvAutoStepRunning) {
+            //     this.cvDetectionHistory.push({
+            //         timestamp: Date.now(),
+            //         tubes: tubes.map(t => ({ id: t.id, x: t.x, y: t.y })),
+            //         balls: balls.map(b => ({ id: b.id, x: b.x, y: b.y, tubeId: b.tubeId, index: b.index }))
+            //     });
+            //     console.log('[CV-RECORD] frame', this.cvDetectionHistory.length);
+            // }
             if (this.cvStepText) this.cvStepText.setText(autoMode ? `CV: Step ${this.cvStepCount}` : `CV: Step ${this.cvStepCount} - Press S`);
             if (!autoMode) {
                 this.scene.resume();
@@ -473,17 +479,11 @@ export class Game extends Scene
         this.iconBtn.setTintFill(idToColor.get(501) ?? 0x888888);
         this.centerBtn.setTintFill(idToColor.get(502) ?? 0x888888);
 
-        // Hide non-tagged UI elements
+        // Hide non-tagged UI elements (centerDownloadText, victoryPopup, victoryOverlay 保持显示)
         const savedCvText = this.cvStepText?.visible;
         const savedDebugText = this.debugText?.visible;
-        const savedDownloadText = this.centerDownloadText?.visible;
-        const savedVictoryPopup = this.victoryPopup?.visible;
-        const savedVictoryOverlay = this.victoryOverlay?.visible;
         if (this.cvStepText) this.cvStepText.setVisible(false);
         if (this.debugText) this.debugText.setVisible(false);
-        if (this.centerDownloadText) this.centerDownloadText.setVisible(false);
-        if (this.victoryPopup) this.victoryPopup.setVisible(false);
-        if (this.victoryOverlay) this.victoryOverlay.setVisible(false);
 
         // Force render the ID-colored scene
         const renderer = this.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
@@ -506,9 +506,6 @@ export class Game extends Scene
         this.centerBtn.clearTint();
         if (this.cvStepText) this.cvStepText.setVisible(savedCvText!);
         if (this.debugText) this.debugText.setVisible(savedDebugText!);
-        if (this.centerDownloadText) this.centerDownloadText.setVisible(savedDownloadText!);
-        if (this.victoryPopup) this.victoryPopup.setVisible(savedVictoryPopup!);
-        if (this.victoryOverlay) this.victoryOverlay.setVisible(savedVictoryOverlay!);
 
         // Force render to restore normal view
         renderer.preRender();

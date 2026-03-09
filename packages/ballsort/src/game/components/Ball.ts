@@ -64,26 +64,13 @@ export class Ball extends Phaser.GameObjects.Container {
 
     /** Color-coded ID rendering: tintFill ballImage with ID color, hide everything else. Returns restore function. */
     public applyIdRenderMode(id: number): () => void {
-        const saved = {
-            ballVis: this.ballImage.visible,
-            liquidVis: this.liquidSprite.visible,
-            candleVis: this.candleImage.visible,
-            exprVis: this.ballExpressionSprite?.visible ?? false,
-            glowVis: this.glowSprites.map(g => g.visible),
-        };
+        const saved = { ballVis: this.ballImage.visible };
         this.ballImage.setTintFill(encodeIdToColor(id));
         this.ballImage.setVisible(true);
-        this.liquidSprite.setVisible(false);
-        this.candleImage.setVisible(false);
-        if (this.ballExpressionSprite) this.ballExpressionSprite.setVisible(false);
-        this.glowSprites.forEach(g => g.setVisible(false));
+        // liquidSprite, candleImage, ballExpressionSprite, glowSprites 保持显示（不隐藏）
         return () => {
             this.ballImage.clearTint();
             this.ballImage.setVisible(saved.ballVis);
-            this.liquidSprite.setVisible(saved.liquidVis);
-            this.candleImage.setVisible(saved.candleVis);
-            if (this.ballExpressionSprite) this.ballExpressionSprite.setVisible(saved.exprVis);
-            this.glowSprites.forEach((g, i) => g.setVisible(saved.glowVis[i]));
         };
     }
 

@@ -1,3 +1,7 @@
+/**
+ * CV 录制控制组件（Play/Pause/End 按钮）
+ * 注意：此组件已暂时在 DeviceSimulator 中注释，恢复时取消 DeviceSimulator 中的注释。
+ */
 import { useState, useEffect } from 'react';
 import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS, type RecordStatus } from '../game/cvRecordEvents';
 
