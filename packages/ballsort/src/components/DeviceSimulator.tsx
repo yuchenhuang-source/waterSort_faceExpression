@@ -90,7 +90,7 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
   const urlParams = new URLSearchParams(search);
   const isSimulatorView = urlParams.get('simulator') === '1';
   const showSimulator = import.meta.env.DEV && (urlParams.get('enableSimulator') === '1' || (isDesktop() && !isSimulatorView));
-  const isCVMode = urlParams.get('cv') === '1';
+  //const isCVMode = urlParams.get('cv') === '1';
 
   useEffect(() => {
     if (!showSimulator || typeof window === 'undefined') return;

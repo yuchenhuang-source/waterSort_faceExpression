@@ -24,6 +24,7 @@ interface GameConfig {
 
 export class Game extends Scene
 {
+    private backgroundImage: Phaser.GameObjects.Image | null = null; // 全屏背景（CV 模式作为普通元素）
     private iconBtn: Phaser.GameObjects.Image; // 左上角icon
     private centerBtn: Phaser.GameObjects.Image; // 屏幕中心按钮
     private centerBtnContainer: Phaser.GameObjects.Container; // 按钮容器（包含图片和文字）
@@ -54,7 +55,7 @@ export class Game extends Scene
     private waitingForCV: boolean = false;
     private cvStepText: Phaser.GameObjects.Text | null = null;
     private cvStepCount: number = 0;
-    private cvDetectionHistory: Array<{ timestamp: number; tubes: Array<{ id: number; x: number; y: number }>; balls: Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }> }> = [];
+    //private cvDetectionHistory: Array<{ timestamp: number; tubes: Array<{ id: number; x: number; y: number }>; balls: Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }> }> = [];
 
     /** Stable color map: generated once per game session, reused every frame. */
     private _colorMap: ColorMap | null = null;
@@ -77,6 +78,9 @@ export class Game extends Scene
         // 记录当前难度
         this.currentDifficulty = data?.difficulty ?? 1;
         this.currentEmptyTubeCount = data?.emptyTubeCount ?? 2;
+
+        // 创建全屏背景（作为普通 GameObject，CV 模式 tint 处理）
+        this.createBackground();
 
         // 创建游戏区域，传入 Preloader 阶段生成的谜题和配置（如果存在）
         const tBoard = performance.now();
@@ -403,10 +407,10 @@ export class Game extends Scene
             this.cvStepCount++;
             const detections = response.detections || {};
             const objects = (detections.objects || []) as Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }>;
-            const tubes = objects.filter(o => o.id < 100);
-            const balls = objects
-                .filter(o => o.id >= 100 && o.id < 500)
-                .map(o => ({ ...o, tubeId: Math.floor((o.id - 100) / 10), index: (o.id - 100) % 10 }));
+            //const tubes = objects.filter(o => o.id < 100);
+            //const balls = objects
+            //    .filter(o => o.id >= 100 && o.id < 500)
+            //    .map(o => ({ ...o, tubeId: Math.floor((o.id - 100) / 10), index: (o.id - 100) % 10 }));
             const liquidDetected = objects.some(o => o.id === 1000);
             const expressionDetected = objects.some(o => o.id === 1001);
             // CV 录制已暂时注释：不再 push 到 cvDetectionHistory
@@ -453,14 +457,15 @@ export class Game extends Scene
      */
     private static readonly ID_LIQUID = 1000;
     private static readonly ID_EXPRESSION = 1001;
+    private static readonly ID_BACKGROUND = 9999;
 
     private ensureColorMap(): { colorMap: ColorMap; idToColor: Map<number, number> } {
         if (this._colorMap && this._idToColor) {
             return { colorMap: this._colorMap, idToColor: this._idToColor };
         }
         const allIds: number[] = [];
-        const tubeCount = Config.GAME_CONFIG.TUBE_COUNT;
-        const tubeCapacity = Config.GAME_CONFIG.TUBE_CAPACITY;
+        const tubeCount = this.board.getTubeCount();
+        const tubeCapacity = this.board.getTubeCapacity();
         for (let t = 0; t < tubeCount; t++) allIds.push(t);
         for (let t = 0; t < tubeCount; t++) {
             for (let s = 0; s < tubeCapacity; s++) {
@@ -469,6 +474,7 @@ export class Game extends Scene
         }
         allIds.push(Game.ID_LIQUID, Game.ID_EXPRESSION); // liquid animation, ball expression (when rising)
         allIds.push(500, 501, 502); // hand, icon, download
+        allIds.push(Game.ID_BACKGROUND); // background (same treatment as any object)
         const result = generateColorMap(allIds);
         this._colorMap = result.colorMap;
         this._idToColor = result.idToColor;
@@ -476,17 +482,16 @@ export class Game extends Scene
     }
 
     public captureColorCodedFrame(): { pixels: string, width: number, height: number, colorMap: ColorMap } {
-        const cam = this.cameras.main;
         // Reuse the stable color map (same colors every frame)
         const { colorMap, idToColor } = this.ensureColorMap();
-
-        // Transparent background — only actual game objects produce opaque pixels
-        cam.setBackgroundColor('rgba(0,0,0,0)');
 
         // Apply ID mode to board (tubes + balls + hand)
         const restoreBoard = this.board.applyIdRenderMode(idToColor);
 
-        // Apply ID mode to UI buttons (501=icon, 502=download)
+        // Apply ID mode to background (9999) and UI buttons (501=icon, 502=download)
+        if (this.backgroundImage) {
+            this.backgroundImage.setTintFill(idToColor.get(Game.ID_BACKGROUND) ?? 0x888888);
+        }
         this.iconBtn.setTintFill(idToColor.get(501) ?? 0x888888);
         this.centerBtn.setTintFill(idToColor.get(502) ?? 0x888888);
 
@@ -513,6 +518,7 @@ export class Game extends Scene
 
         // Restore everything
         restoreBoard();
+        if (this.backgroundImage) this.backgroundImage.clearTint();
         this.iconBtn.clearTint();
         this.centerBtn.clearTint();
         if (this.cvStepText) this.cvStepText.setVisible(savedCvText!);
@@ -626,6 +632,29 @@ export class Game extends Scene
         } else {
             download();
         }
+    }
+
+    private createBackground() {
+        const isPortrait = window.innerHeight > window.innerWidth;
+        const width = isPortrait ? 1080 : 2160;
+        const height = isPortrait ? 2160 : 1080;
+        const bgKey = isPortrait ? 'bg-v' : 'bg-h';
+        this.backgroundImage = this.add.image(width / 2, height / 2, bgKey);
+        this.backgroundImage.setDisplaySize(width, height);
+        this.backgroundImage.setDepth(-1000);
+    }
+
+    private updateBackground() {
+        if (!this.backgroundImage) return;
+        const isPortrait = window.innerHeight > window.innerWidth;
+        const width = isPortrait ? 1080 : 2160;
+        const height = isPortrait ? 2160 : 1080;
+        const bgKey = isPortrait ? 'bg-v' : 'bg-h';
+        if (this.backgroundImage.texture?.key !== bgKey) {
+            this.backgroundImage.setTexture(bgKey);
+        }
+        this.backgroundImage.setPosition(width / 2, height / 2);
+        this.backgroundImage.setDisplaySize(width, height);
     }
 
     private createUIButtons() {
@@ -798,6 +827,9 @@ export class Game extends Scene
         const height = isPortrait ? 2160 : 1080;
 
         this.scale.setGameSize(width, height);
+
+        // 更新背景尺寸和方向
+        this.updateBackground();
 
         // 显式刷新 Board 布局，避免 scale resize 事件顺序导致旋转后位置错误
         if (this.board) {

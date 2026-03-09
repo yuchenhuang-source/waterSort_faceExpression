@@ -10,6 +10,8 @@ import { getPersistentSelectedLevel } from '../levelSelection';
 
 // 导入游戏图片资源
 import downloadBtn from '../../assets/按钮.png';
+import bgV from '../../assets/bg-v.png';
+import bgH from '../../assets/bg-h.png';
 import icon from '../../assets/icon.png';
 import hand from '../../assets/手.png';
 import tube from '../../assets/试管.png';
@@ -135,6 +137,10 @@ export class Preloader extends Scene {
      * 预加载所有游戏资源
      */
     preload() {
+        // 加载背景图（Game 场景用，CV 模式作为普通元素）
+        this.load.image('bg-v', bgV);
+        this.load.image('bg-h', bgH);
+
         // 加载基础UI
         this.load.image('download', downloadBtn);
         this.load.image('icon', icon);

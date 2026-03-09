@@ -85,6 +85,17 @@ export class Board extends Phaser.GameObjects.Container {
         this.isGameActive = true;
     }
 
+    /** Tube count (for CV color map generation). */
+    public getTubeCount(): number {
+        return this.tubes.length;
+    }
+
+    /** Max balls per tube, derived from actual tube contents (for CV color map generation). */
+    public getTubeCapacity(): number {
+        if (this.tubes.length === 0) return 1;
+        return Math.max(1, ...this.tubes.map(t => t.balls.length));
+    }
+
     /** Returns world pixel positions for all tubes and present balls (for CV comparison). */
     public getExpectedObjectPositions(): Array<{ id: number; x: number; y: number; type: string }> {
         const result: Array<{ id: number; x: number; y: number; type: string }> = [];

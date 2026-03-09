@@ -5,14 +5,8 @@ Each capture frame is accompanied by a colorMap: { "rrggbb": objectId }.
 Detection finds all unique pixel-color clusters and matches each to the nearest
 entry in colorMap (Euclidean distance in RGB space, threshold 25).
 
-ID ranges (from game):
-  Tubes:    0 ~ N-1
-  Balls:    100 + tubeId*10 + slotIndex
-  Liquid:   1000 (升起的水球液体动画，点击试管后出现)
-  Expression: 1001 (升起的水球表情，点击试管后出现)
-  Hand:     500
-  Icon:     501
-  Download: 502
+All objects (tubes, balls, liquid, expression, hand, buttons, etc.) use random IDs
+assigned per session; the colorMap defines the hex→id mapping.
 """
 import base64
 import io
