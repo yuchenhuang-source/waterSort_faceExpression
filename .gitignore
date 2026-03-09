@@ -15,8 +15,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # CV bridge
-packages/ballsort/cv-bridge/venv
-packages/ballsort/cv-bridge/frames
+packages/phaser-cv/cv-bridge/venv
 
 # Editor
 .vscode/*

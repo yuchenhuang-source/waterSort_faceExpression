@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""
+CV Bridge Server - WebSocket (8765) for game + HTTP (5000) for CV UI.
+Game sends frames, gets response. UI clients receive broadcasts.
+"""
+import asyncio
+import json
+import sys
+from pathlib import Path
+
+# Add cv-bridge dir so we can import processors
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from color_cv_processor import process_color_coded_frame, process_pixel_data, make_debug_frame
+
+try:
+    import websockets
+    from websockets.exceptions import ConnectionClosed
+except ImportError:
+    print("Install websockets: pip install websockets")
+    sys.exit(1)
+
+WS_PORT = 8765
+HTTP_PORT = 5000
+UI_DIR = Path(__file__).resolve().parent / "ui"
+
+# All connected WebSocket clients (game + UI)
+# Game client sends frames; UI clients only receive broadcasts
+clients: set = set()
+
+# Latest detections for click MCP polling (updated on each frame)
+latest_detections: dict | None = None
+
+
+async def handle_game_message(websocket, message: dict) -> dict:
+    """Process frame/pixelData + colorMap from game, return response."""
+    color_map = message.get("colorMap") or {}
+    active_ids = message.get("activeIds")  # list of currently-present object IDs
+    id_to_label = message.get("idToLabel")  # cvId -> label map for CV UI
+
+    def _attach_labels(result: dict, id_to_label: dict | None) -> None:
+        """Attach label to each object and frameDiff using idToLabel."""
+        if id_to_label is None:
+            return
+        for o in result.get("objects", []):
+            o["label"] = id_to_label.get(str(o["id"]), f"id{o['id']}")
+        for d in result.get("frameDiffs", []):
+            d["label"] = id_to_label.get(str(d["id"]), d.get("label", f"id{d['id']}"))
+
+    def _add_normalized_coords(result: dict) -> None:
+        """Add normX, normY (0-1) to each object."""
+        fs = result.get("frameSize", {})
+        gw = fs.get("gameWidth") or 1080
+        gh = fs.get("gameHeight") or 1920
+        if gw <= 0 or gh <= 0:
+            return
+        for o in result.get("objects", []):
+            o["normX"] = round(o["x"] / gw, 6)
+            o["normY"] = round(o["y"] / gh, 6)
+
+    pixel_data = message.get("pixelData")
+    if pixel_data is not None:
+        result = process_pixel_data(pixel_data, color_map, active_ids)
+        debug_frame = make_debug_frame(pixel_data)
+        _add_normalized_coords(result)
+        if id_to_label is not None:
+            result["idToLabel"] = id_to_label
+            _attach_labels(result, id_to_label)
+            keys = sorted(id_to_label.keys(), key=lambda k: int(k) if k.lstrip("-").isdigit() else 9999)
+            sample = [(k, id_to_label[k]) for k in keys[:8]] + ([(k, id_to_label[k]) for k in keys[-4:]] if len(keys) > 12 else [])
+            print(f"[CV] idToLabel count={len(keys)} sample={dict(sample)}")
+        return {"status": result.get("status", "ok"), "detections": result, "_debugFrame": debug_frame}
+
+    frame = message.get("frame")
+    if not frame:
+        return {"status": "error", "error": "missing frame or pixelData"}
+
+    result = process_color_coded_frame(frame, color_map, active_ids)
+    _add_normalized_coords(result)
+    if id_to_label is not None:
+        result["idToLabel"] = id_to_label
+        _attach_labels(result, id_to_label)
+        keys = sorted(id_to_label.keys(), key=lambda k: int(k) if k.lstrip("-").isdigit() else 9999)
+        sample = [(k, id_to_label[k]) for k in keys[:8]] + ([(k, id_to_label[k]) for k in keys[-4:]] if len(keys) > 12 else [])
+        print(f"[CV] idToLabel count={len(keys)} sample={dict(sample)}")
+    return {"status": result.get("status", "ok"), "detections": result, "_debugFrame": frame}
+
+
+async def broadcast(data: dict):
+    """Send data to all connected clients (UI observers)."""
+    if not clients:
+        return
+    msg = json.dumps(data)
+    for ws in clients.copy():
+        try:
+            await ws.send(msg)
+        except ConnectionClosed:
+            pass
+        except Exception as e:
+            print(f"[CV] Broadcast to client failed: {e}")
+
+
+async def ws_handler(websocket):
+    """Handle WebSocket connection. Game sends frames; UI clients receive broadcasts."""
+    clients.add(websocket)
+    try:
+        async for raw in websocket:
+            try:
+                msg = json.loads(raw)
+                # If it has "frame", it's from the game
+                if "frame" in msg or "pixelData" in msg:
+                    response = await handle_game_message(websocket, msg)
+                    # Strip internal debug frame before sending back to game
+                    debug_frame = response.pop("_debugFrame", None)
+                    global latest_detections
+                    latest_detections = response.get("detections", {})
+                    await websocket.send(json.dumps(response))
+                    # Broadcast to UI clients — include reconstructed frame for canvas display
+                    await broadcast({
+                        "type": "frame_processed",
+                        "frame": debug_frame,
+                        "detections": response.get("detections", {}),
+                        "response": response,
+                    })
+            except json.JSONDecodeError as e:
+                await websocket.send(json.dumps({"status": "error", "error": str(e)}))
+    finally:
+        clients.discard(websocket)
+
+
+async def serve_http(reader, writer):
+    """Simple HTTP server for CV UI static files + /api/latest-detections."""
+    data = await reader.read(4096)
+    lines = data.decode().split("\r\n")
+    if not lines:
+        writer.close()
+        return
+
+    req_line = lines[0]
+    parts = req_line.split()
+    if len(parts) < 2:
+        writer.close()
+        return
+
+    method, path = parts[0], parts[1]
+    if "?" in path:
+        path = path.split("?")[0]
+
+    # API: GET /api/latest-detections for click MCP polling
+    if method == "GET" and path == "/api/latest-detections":
+        body = json.dumps(latest_detections if latest_detections is not None else {"status": "no_data"}).encode()
+        writer.write(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Access-Control-Allow-Origin: *\r\n"
+            b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n"
+        )
+        writer.write(body)
+        await writer.drain()
+        writer.close()
+        return
+
+    if path == "/":
+        path = "/index.html"
+
+    safe_path = path.lstrip("/").replace("..", "")
+    filepath = (UI_DIR / safe_path).resolve()
+    ui_dir = UI_DIR.resolve()
+    if not str(filepath).startswith(str(ui_dir)):
+        filepath = UI_DIR / "index.html"
+
+    if filepath.exists() and filepath.is_file():
+        content = filepath.read_bytes()
+        ext = filepath.suffix.lower()
+        mime = {
+            ".html": "text/html",
+            ".js": "application/javascript",
+            ".css": "text/css",
+        }.get(ext, "application/octet-stream")
+        cache = "no-cache"  # 开发时避免缓存，便于看到 UI 修改
+        writer.write(f"HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nCache-Control: {cache}\r\nContent-Length: {len(content)}\r\n\r\n".encode())
+        writer.write(content)
+    else:
+        writer.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+
+    await writer.drain()
+    writer.close()
+
+
+async def main():
+    # WebSocket server
+    ws_server = await websockets.serve(ws_handler, "localhost", WS_PORT, ping_interval=20, ping_timeout=10, max_size=8*1024*1024)
+    print(f"[CV] WebSocket server on ws://localhost:{WS_PORT}")
+
+    # HTTP server for UI
+    http_server = await asyncio.start_server(serve_http, "localhost", HTTP_PORT)
+    print(f"[CV] HTTP server (CV UI) on http://localhost:{HTTP_PORT}")
+
+    await asyncio.Future()  # run forever
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

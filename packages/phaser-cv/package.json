@@ -1,0 +1,29 @@
+{
+  "name": "@ballsort-multi/phaser-cv",
+  "version": "1.0.0",
+  "description": "Color-encoded instance segmentation for Phaser games - CV bridge, integration, and Python server",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc && cp src/phaser-cv.d.ts dist/",
+    "start:cv": "cv-bridge/venv/bin/python cv-bridge/server.py"
+  },
+  "peerDependencies": {
+    "phaser": "^3.80.0"
+  },
+  "devDependencies": {
+    "phaser": "^3.80.0",
+    "typescript": "^5.2.2"
+  },
+  "files": [
+    "dist",
+    "cv-bridge"
+  ]
+}

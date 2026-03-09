@@ -1,0 +1,10 @@
+const c = { bold: '\x1b[1m', cyan: '\x1b[36m', green: '\x1b[32m', reset: '\x1b[0m' };
+const base = 'http://localhost:8080';
+const cv = '?cv=1';
+console.log('');
+console.log(`${c.green}${c.bold}  CV UI:${c.reset}  ${c.cyan}${c.bold}http://localhost:5000${c.reset}`);
+console.log(`${c.green}${c.bold}  Game:${c.reset}   ${c.cyan}${c.bold}${base}${cv}${c.reset}`);
+console.log(`${c.green}${c.bold}  Level 1:${c.reset} ${c.cyan}${c.bold}${base}${cv}&level=1${c.reset}`);
+console.log(`${c.green}${c.bold}  Level 2:${c.reset} ${c.cyan}${c.bold}${base}${cv}&level=2${c.reset}`);
+console.log(`${c.green}${c.bold}  Level 3:${c.reset} ${c.cyan}${c.bold}${base}${cv}&level=3${c.reset}`);
+console.log('');

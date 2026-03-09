@@ -1,0 +1,62 @@
+{
+  "name": "@ballsort-multi/phaser-cv-demo",
+  "description": "Official demo for @ballsort-multi/phaser-cv - Ballsort game with Color-encoded Instance Segmentation",
+  "version": "1.0.2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phaserjs/template-react-ts.git"
+  },
+  "author": "Phaser Studio <support@phaser.io> (https://phaser.io/)",
+  "license": "MIT",
+  "licenseUrl": "http://www.opensource.org/licenses/mit-license.php",
+  "bugs": {
+    "url": "https://github.com/phaserjs/template-react-ts/issues"
+  },
+  "homepage": "https://github.com/phaserjs/template-react-ts#readme",
+  "documentation": "./docs",
+  "keywords": [
+    "phaser",
+    "phaser3",
+    "react",
+    "vite",
+    "typescript"
+  ],
+  "scripts": {
+    "dev": "node scripts/print-dev-links.mjs && npm run dev:core",
+    "dev:core": "vite --config vite/config.dev.mjs",
+    "dev:cv": "node scripts/ensure-cv-venv.mjs && node scripts/print-cv-links.mjs && (lsof -ti:8080 | xargs kill -9 2>/dev/null; lsof -ti:8765 | xargs kill -9 2>/dev/null; lsof -ti:5000 | xargs kill -9 2>/dev/null; true) && concurrently -p none \"npm run dev:core\" \"npm run start:cv -w @ballsort-multi/phaser-cv\"",
+    "cv:check": "node scripts/cv-check.mjs",
+    "build": "vite build --config vite/config.prod.mjs && node scripts/remove-script.mjs",
+    "dev-tools": "node --watch scripts/constants-editor-server.mjs",
+    "dev:all": "npm run dev"
+  },
+  "dependencies": {
+    "@ballsort-multi/phaser-cv": "file:../phaser-cv",
+    "jszip": "^3.10.1",
+    "express": "^4.21.0",
+    "@esotericsoftware/spine-phaser-v3": "^4.2.80",
+    "base64-arraybuffer": "^1.0.2",
+    "glob": "^11.0.2",
+    "phaser": "^3.88.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vite-plugin-singlefile": "^2.0.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "@rollup/plugin-alias": "^5.1.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.1",
+    "@typescript-eslint/parser": "^7.13.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.7",
+    "rollup-plugin-inline-image": "^0.1.0",
+    "terser": "^5.28.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.3.1",
+    "zlib": "^1.0.5"
+  }
+}

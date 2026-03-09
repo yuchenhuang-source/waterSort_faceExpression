@@ -5,8 +5,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:ballsort": "npm run dev -w @ballsort-multi/ballsort",
-    "build:ballsort": "npm run build -w @ballsort-multi/ballsort",
+    "dev:demo": "npm run dev -w @ballsort-multi/phaser-cv-demo",
+    "dev:demo:cv": "npm run dev:cv -w @ballsort-multi/phaser-cv-demo",
+    "build:demo": "npm run build -w @ballsort-multi/phaser-cv-demo",
+    "dev:watersort": "npm run dev -w @ballsort-multi/watersort",
+    "build:watersort": "npm run build -w @ballsort-multi/watersort",
     "build:all": "npm run build -ws --if-present"
   }
 }
