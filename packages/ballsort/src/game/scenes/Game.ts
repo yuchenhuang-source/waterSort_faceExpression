@@ -9,7 +9,7 @@ import { getDownloadText } from '../../utils/i18n';
 import { getCachedPuzzle } from '../../utils/puzzleCache';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
-import { isCVModeEnabled, getCVBridge, destroyCVBridge, CV_MODE_CHANGED } from '../cv-bridge/CVBridge';
+import { isCVModeEnabled, getCVBridge, destroyCVBridge } from '../cv-bridge/CVBridge';
 import { generateColorMap, extractValidPixels, ColorMap } from '../render/ObjectIdPipeline';
 import JSZip from 'jszip';
 import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from '../cvRecordEvents';
@@ -120,26 +120,7 @@ export class Game extends Scene
         // CV mode: connect to CV server, enable step-on-S
         if (isCVModeEnabled()) {
             this.initCVMode();
-            // Phase 2: Sync initial CV debug visuals when loading with ?cv=1
-            const bridge = getCVBridge(this.game);
-            this.board.setCVDebugMode(bridge.isCVDebugMode());
-            this.setCVDebugModeForUI(bridge.isCVDebugMode());
         }
-
-        // Phase 2: Hotkey C toggles CV debug mode (ArUco vs normal visuals)
-        const cvToggleHandler = (e: KeyboardEvent) => {
-            if (e.key !== 'c' && e.key !== 'C') return;
-            const bridge = getCVBridge(this.game);
-            const next = !bridge.isCVDebugMode();
-            bridge.setCVDebugMode(next);
-            console.log('[CV-TEST] Hotkey C pressed, cvDebugMode toggled to', next);
-            this.board.setCVDebugMode(next);
-            this.setCVDebugModeForUI(next);
-        };
-        document.addEventListener('keydown', cvToggleHandler);
-        this.events.once('shutdown', () => document.removeEventListener('keydown', cvToggleHandler));
-
-        EventBus.on(CV_MODE_CHANGED, this.setCVDebugModeForUI, this);
 
         // 难度 1/5/9 对应关卡 1/2/3，便于 AI 轮询 console 检测
         const levelNum = this.currentDifficulty === 1 ? 1 : this.currentDifficulty === 5 ? 2 : 3;
@@ -257,7 +238,6 @@ export class Game extends Scene
 
         this.events.once('shutdown', () => {
             this.cvAutoStepRunning = false;
-            EventBus.off(CV_MODE_CHANGED, this.setCVDebugModeForUI, this);
             EventBus.off(CV_RECORD_PLAY, this.onCVRecordPlay, this);
             EventBus.off(CV_RECORD_PAUSE, this.onCVRecordPause, this);
             EventBus.off(CV_RECORD_END, this.onCVRecordEnd, this);
@@ -706,16 +686,6 @@ export class Game extends Scene
             ease: 'Sine.easeInOut'
         });
     }
-
-    /** Phase 2: CV 模式下 icon 和 download 按钮替换为 ArUco */
-    private setCVDebugModeForUI = (enabled: boolean) => {
-        if (!this.iconBtn || !this.centerBtn) return;
-        if (this.textures.exists('aruco_201') && this.textures.exists('aruco_202')) {
-            this.iconBtn.setTexture(enabled ? 'aruco_201' : 'icon');
-            this.centerBtn.setTexture(enabled ? 'aruco_202' : 'download');
-            if (this.centerDownloadText) this.centerDownloadText.setVisible(!enabled);
-        }
-    };
 
     private onWindowResize() {
         this.updateGameSize();

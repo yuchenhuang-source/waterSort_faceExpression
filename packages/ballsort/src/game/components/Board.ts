@@ -3,7 +3,6 @@ import { Tube } from './Tube';
 import { Ball } from './Ball';
 import { Config, BALL_COLORS, BallColor } from '../constants/GameConstants';
 import { EventBus } from '../EventBus';
-import { CV_MODE_CHANGED, getCVBridge } from '../cv-bridge/CVBridge';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
@@ -80,20 +79,10 @@ export class Board extends Phaser.GameObjects.Container {
         
         // 监听试管完成事件
         EventBus.on('tube-complete-internal', this.onTubeCompleteInternal, this);
-
-        // Phase 2: 监听 CV debug 模式切换
-        EventBus.on(CV_MODE_CHANGED, this.onCVModeChanged, this);
         
         scene.add.existing(this);
         this.isGameActive = true;
     }
-
-    /** Phase 2: CV 模式切换时更新所有组件视觉 */
-    private onCVModeChanged = (enabled: boolean) => {
-        console.log('[CV-TEST] Board received cv-mode-changed', enabled);
-        this.setCVDebugMode(enabled);
-        this.refreshLayout();  // 方案4：切换 CV 模式时重新布局（增大间距）
-    };
 
     /** Returns world pixel positions for all tubes and present balls (for CV comparison). */
     public getExpectedObjectPositions(): Array<{ id: number; x: number; y: number; type: string }> {
@@ -164,18 +153,6 @@ export class Board extends Phaser.GameObjects.Container {
         };
     }
 
-    /** Phase 2: 设置 CV debug 模式（ArUco 替换 sprite） */
-    public setCVDebugMode(enabled: boolean): void {
-        console.log('[CV-TEST] Board.setCVDebugMode', enabled, 'tubes=', this.tubes.length);
-        if (this.boardLiquidGraphics) this.boardLiquidGraphics.setVisible(!enabled);
-        if (this.hand && this.scene.textures.exists('aruco_200')) {
-            this.hand.setTexture(enabled ? 'aruco_200' : 'hand');
-        }
-        for (const tube of this.tubes) {
-            tube.setCVDebugMode(enabled);
-        }
-    }
-
     /** 场景重启时移除监听，避免已销毁的 Board 在 resize/update 时被调用导致 TypeError */
     destroy(fromScene?: boolean): void {
         if (this.initialHintTimer) {
@@ -183,7 +160,6 @@ export class Board extends Phaser.GameObjects.Container {
             this.initialHintTimer = null;
         }
         EventBus.off('game-visible', this.scheduleInitialHint, this);
-        EventBus.off(CV_MODE_CHANGED, this.onCVModeChanged, this);
         const scene = this.scene;
         if (scene) {
             scene.scale.off('resize', this.handleResize, this);
@@ -255,10 +231,7 @@ export class Board extends Phaser.GameObjects.Container {
         const maskWidth = (config.TUBE_WIDTH - 4) * tubesScale;
         const maskHeight = (config.TUBE_HEIGHT - 4) * tubesScale;
         const radius = maskWidth / 2;
-        let colOffsetX = config.COL_OFFSET_X * tubesScale;
-        if (getCVBridge(this.scene.game).isCVDebugMode()) {
-            colOffsetX = Math.max(colOffsetX, 130);
-        }
+        const colOffsetX = config.COL_OFFSET_X * tubesScale;
         const rowSpacingY = config.ROW_SPACING_Y * tubesScale;
         const totalWidth = (tubeCols - 1) * colOffsetX;
         const totalHeight = (tubeRows - 1) * rowSpacingY;
@@ -1567,10 +1540,6 @@ export class Board extends Phaser.GameObjects.Container {
                                                         target.checkSameColorHighlight();
                                                         source.checkSameColorHighlight();
                                                         this.checkWinCondition();
-                                                        // Phase 2: 球移动完成后刷新 ArUco ID（球在新试管中的 slot 已确定）
-                                                        if (isLastBall && getCVBridge(this.scene.game).isCVDebugMode()) {
-                                                            this.setCVDebugMode(true);
-                                                        }
                                                     };
                                                     this.scene.time.delayedCall(0, checkCompletionAndWin, [], this);
                                                 }, false, isLastBall);
@@ -2087,11 +2056,7 @@ export class Board extends Phaser.GameObjects.Container {
         // 重新排列试管（以所有 tubes 的中点定位，间距也应用 TUBES_SCALE）
         const tubeCols = cfg.TUBE_COLS ?? Config.GAME_CONFIG.TUBE_COLS;
         const tubeRows = cfg.TUBE_ROWS ?? Config.GAME_CONFIG.TUBE_ROWS;
-        let colOffsetX = config.COL_OFFSET_X * tubesScale;
-        // 方案4：CV 模式下增大间距，减少 ArUco 重叠（横屏 14 试管需 ~130px 才不重叠）
-        if (getCVBridge(this.scene.game).isCVDebugMode()) {
-            colOffsetX = Math.max(colOffsetX, 130);
-        }
+        const colOffsetX = config.COL_OFFSET_X * tubesScale;
         const rowSpacingY = config.ROW_SPACING_Y * tubesScale;
         const totalWidth = (tubeCols - 1) * colOffsetX;
         const totalHeight = (tubeRows - 1) * rowSpacingY;

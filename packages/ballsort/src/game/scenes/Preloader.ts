@@ -244,17 +244,6 @@ export class Preloader extends Scene {
         // 加载液面纹理（黑色图，运行时按液体颜色着色）
         this.load.image('liquid_surface', liquidSurface);
 
-        // Phase 2: 加载 ArUco 纹理（CV debug 模式用）
-        const arucoIds = [
-            ...Array.from({ length: 14 }, (_, i) => i),
-            ...Array.from({ length: 100 }, (_, i) => 100 + i),
-            200, 201, 202,
-            ...Array.from({ length: 4 }, (_, i) => 210 + i)
-        ];
-        for (const id of arucoIds) {
-            this.load.image(`aruco_${id}`, `/aruco/aruco_${id}.png`);
-        }
-
         // 通过 virtual:game-assets 加载音频（供 Phaser 播放）
         loadAssetGroup(this, 'audio');
 
@@ -383,10 +372,6 @@ export class Preloader extends Scene {
 
         // 创建液体动画
         this.createLiquidAnimations();
-
-        // Phase 2: [CV-TEST] ArUco 纹理加载验证
-        const arucoKeys = Object.keys(this.textures.list).filter((k) => k.startsWith('aruco_'));
-        console.log('[CV-TEST] ArUco textures loaded', arucoKeys.length, arucoKeys.slice(0, 15));
 
         // 资源加载完毕，立即启动 Game 场景（使用当前 difficulty，默认 1）
         // Game 在选关覆盖层后面渲染，用户点击选关后只需取消隐藏

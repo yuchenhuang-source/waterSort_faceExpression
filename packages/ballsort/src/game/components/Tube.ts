@@ -12,8 +12,6 @@ export class Tube extends Phaser.GameObjects.Container {
     private tubeMouthImage: Phaser.GameObjects.Image;
     private highlightBodyImage: Phaser.GameObjects.Image;
     private highlightMouthImage: Phaser.GameObjects.Image;
-    /** Phase 2: CV debug 模式下的 ArUco 标记 */
-    private arucoImage: Phaser.GameObjects.Image | null = null;
     
     // 液体渲染相关（合并模式时不创建 liquidGraphics，由 Board 统一绘制）
     private liquidContainer: Phaser.GameObjects.Container;
@@ -154,19 +152,6 @@ export class Tube extends Phaser.GameObjects.Container {
         );
         this.highlightBodyImage.setAlpha(0);
         this.add(this.highlightBodyImage);
-
-        // Phase 2: ArUco 标记（CV debug 模式替换试管视觉）
-        const arucoKey = `aruco_${id}`;
-        this.arucoImage = scene.textures.exists(arucoKey)
-            ? scene.add.image(0, 0, arucoKey)
-            : null;
-        if (this.arucoImage) {
-            // ArUco 必须保持正方形；32-48px 足够检测且减少重叠（方案1）
-            const arucoSize = Math.min(48, Math.max(32, Math.min(this.currentWidth, this.currentHeight) * 0.9));
-            this.arucoImage.setDisplaySize(arucoSize, arucoSize);
-            this.arucoImage.setVisible(false);
-            this.add(this.arucoImage);
-        }
         
         // 层级调整
         // 遮罩层(maskImage) -> 液体层(liquidContainer) -> 管口 -> 高亮管口 -> 管身 -> 高亮管身
@@ -257,10 +242,6 @@ export class Tube extends Phaser.GameObjects.Container {
             width * Tube.HIGHLIGHT_WIDTH_RATIO,
             height * Tube.HIGHLIGHT_HEIGHT_RATIO
         );
-        if (this.arucoImage) {
-            const arucoSize = Math.min(48, Math.max(32, Math.min(width, height) * 0.9));
-            this.arucoImage.setDisplaySize(arucoSize, arucoSize);
-        }
         this.setSize(width, height);
         
         // 更新交互区域
@@ -309,7 +290,6 @@ export class Tube extends Phaser.GameObjects.Container {
             hlMouthVis: this.highlightMouthImage.visible,
             hlMouthAlpha: this.highlightMouthImage.alpha,
             liquidContVis: this.liquidContainer.visible,
-            arucoVis: this.arucoImage?.visible ?? false,
             candleVis: this.candleImage?.visible ?? false,
             fireVis: this.fireSprite?.visible ?? false,
         };
@@ -353,7 +333,6 @@ export class Tube extends Phaser.GameObjects.Container {
         this.highlightBodyImage.setVisible(false);
         this.highlightMouthImage.setVisible(false);
         // Keep liquidContainer visible - we're reusing its surface sprites with ID tints
-        if (this.arucoImage) this.arucoImage.setVisible(false);
         if (this.candleImage) this.candleImage.setVisible(false);
         if (this.fireSprite) this.fireSprite.setVisible(false);
         this.balls.forEach(b => b.setVisible(false));
@@ -370,7 +349,6 @@ export class Tube extends Phaser.GameObjects.Container {
             this.highlightMouthImage.setVisible(saved.hlMouthVis);
             this.highlightMouthImage.setAlpha(saved.hlMouthAlpha);
             this.liquidContainer.setVisible(saved.liquidContVis);
-            if (this.arucoImage) this.arucoImage.setVisible(saved.arucoVis);
             if (this.candleImage) this.candleImage.setVisible(saved.candleVis);
             if (this.fireSprite) this.fireSprite.setVisible(saved.fireVis);
             // Board restore will call requestLiquidRedraw -> drawAllLiquids -> updateSurfaceSprites to restore surface tints
@@ -473,26 +451,6 @@ export class Tube extends Phaser.GameObjects.Container {
             targetGraphics.fillStyle(encodeIdToColor(ballId), 1);
             targetGraphics.fillRect(ox + (-width / 2), oy + (currentY - this.addingBallHeight), width, this.addingBallHeight + 2);
         }
-    }
-
-    /** Phase 2: 设置 CV debug 模式（ArUco 替换试管和球视觉） */
-    public setCVDebugMode(enabled: boolean): void {
-        this.tubeBodyImage.setVisible(!enabled);
-        this.tubeMouthImage.setVisible(!enabled);
-        this.highlightBodyImage.setVisible(!enabled);
-        this.highlightMouthImage.setVisible(!enabled);
-        this.liquidContainer.setVisible(!enabled);
-        if (this.arucoImage) {
-            this.arucoImage.setVisible(enabled);
-            if (enabled) this.bringToTop(this.arucoImage);  // 方案5：试管 ArUco 置顶，不被球遮挡
-            console.log('[CV-TEST] Tube', this.id, 'setCVDebugMode', enabled, 'arucoVisible=', this.arucoImage.visible);
-        }
-        if (this.candleImage) this.candleImage.setVisible(!enabled);
-        if (this.fireSprite) this.fireSprite.setVisible(!enabled);
-        this.balls.forEach((ball, idx) => {
-            const arucoId = 100 + this.id * 10 + idx;
-            ball.setCVDebugMode(enabled, arucoId);
-        });
     }
 
     /**

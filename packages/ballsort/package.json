@@ -24,7 +24,6 @@
   "scripts": {
     "dev": "concurrently -n dev,tools -c blue,cyan \"vite --config vite/config.dev.mjs\" \"npm run dev-tools\"",
     "dev:cv": "node scripts/print-cv-links.mjs && (lsof -ti:8765 | xargs kill -9 2>/dev/null; lsof -ti:5000 | xargs kill -9 2>/dev/null; true) && concurrently -n dev,cv -c blue,magenta \"npm run dev\" \"cv-bridge/venv/bin/python cv-bridge/server.py\"",
-    "generate:aruco": "cv-bridge/venv/bin/python cv-bridge/generate_aruco.py",
     "build": "vite build --config vite/config.prod.mjs && node scripts/remove-script.mjs",
     "dev-tools": "node --watch scripts/constants-editor-server.mjs",
     "dev:all": "npm run dev"

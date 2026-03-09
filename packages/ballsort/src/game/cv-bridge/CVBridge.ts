@@ -1,15 +1,11 @@
 /**
  * CV Bridge - WebSocket client for Game <-> Python CV communication.
  * Captures frames from Phaser canvas, sends to CV server, waits for response.
- * Phase 2: Runtime CV debug mode toggle (smooth switch between normal and ArUco visuals).
  */
 
-import { EventBus } from '../EventBus';
 import type { ColorMap } from '../render/ObjectIdPipeline';
 
 const WS_URL = 'ws://localhost:8765';
-
-export const CV_MODE_CHANGED = 'cv-mode-changed';
 
 export interface CVResponse {
     status: string;
@@ -32,29 +28,9 @@ export class CVBridge {
     private ws: WebSocket | null = null;
     private pendingResolve: ((value: CVResponse) => void) | null = null;
     private game: Phaser.Game;
-    /** Phase 2: Runtime CV debug mode - toggles ArUco vs normal visuals */
-    private cvDebugMode: boolean = false;
 
     constructor(game: Phaser.Game) {
         this.game = game;
-        if (typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            this.cvDebugMode = params.get('cv') === '1';
-        }
-    }
-
-    /** Phase 2: Get current CV debug mode (ArUco visuals) */
-    isCVDebugMode(): boolean {
-        return this.cvDebugMode;
-    }
-
-    /** Phase 2: Toggle CV debug mode. Emits cv-mode-changed for Board/UI to react. */
-    setCVDebugMode(enabled: boolean): void {
-        if (this.cvDebugMode === enabled) return;
-        this.cvDebugMode = enabled;
-        console.log('[CV-TEST] setCVDebugMode', enabled);
-        EventBus.emit(CV_MODE_CHANGED, enabled);
-        console.log('[CV-TEST] emitted cv-mode-changed');
     }
 
     connect(): Promise<void> {
@@ -113,7 +89,7 @@ export class CVBridge {
             console.warn('[CV] captureFrame: no canvas');
             return '';
         }
-        // 透明背景合成到白色，避免黑底导致 ArUco 不可见
+        // 透明背景合成到白色，便于 CV 颜色检测
         const offscreen = document.createElement('canvas');
         offscreen.width = canvas.width;
         offscreen.height = canvas.height;
