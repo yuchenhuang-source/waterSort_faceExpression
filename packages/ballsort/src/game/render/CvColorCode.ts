@@ -1,0 +1,70 @@
+/**
+ * CV 颜色编码统一接口
+ * - Tintable：纹理对象（Image/Sprite）用 setTintFill
+ * - Graphics Drawer：无纹理对象用 fillStyle + fillRect
+ * - ICvTintableProvider / ICvRenderable：脚本对象实现接口参与 CV 渲染
+ */
+
+// ── Tintable（纹理对象：Image / Sprite）──
+
+export interface CvTintable {
+    obj: Phaser.GameObjects.GameObject;
+    id: number;
+    /** 可选，默认 clearTint */
+    restore?: () => void;
+}
+
+/**
+ * 对 tintables 应用 ID 颜色（方案 B：仅对 obj.visible 的对象 tint）。
+ * 返回 restore 函数，用于截帧后恢复。
+ */
+export function applyCvTintables(
+    tintables: CvTintable[],
+    idToColor: Map<number, number>,
+): () => void {
+    const toRestore: CvTintable[] = [];
+    for (const t of tintables) {
+        if (!t.obj?.visible) continue;
+        const setTint = (t.obj as any).setTintFill;
+        if (typeof setTint !== 'function') continue;
+        setTint.call(t.obj, idToColor.get(t.id) ?? 0x888888);
+        toRestore.push(t);
+    }
+    return () => {
+        for (const t of toRestore) {
+            if (t.restore) t.restore();
+            else {
+                const clearTint = (t.obj as any).clearTint;
+                if (typeof clearTint === 'function') clearTint.call(t.obj);
+            }
+        }
+    };
+}
+
+// ── Graphics Drawer（无纹理对象：fillStyle + fillRect）──
+
+/** Graphics 绘制：用 idToColor 绘制，返回 restore。用于无纹理的 fillStyle + fillRect。 */
+export type CvGraphicsDrawer<T = unknown> = (
+    idToColor: Map<number, number>,
+) => { restore: () => void; data?: T };
+
+/** 多 drawer 场景：依次执行各 drawer，返回组合 restore。 */
+export function applyCvGraphicsDrawers(
+    drawers: CvGraphicsDrawer[],
+    idToColor: Map<number, number>,
+): () => void {
+    const restores = drawers.map((d) => d(idToColor).restore);
+    return () => restores.forEach((r) => r());
+}
+
+// ── 对象接口（供脚本 implement）──
+
+/** 叶子对象，如 Ball，提供 getCvTintables。 */
+export interface ICvTintableProvider {
+    getCvTintables(): CvTintable[];
+}
+
+/** 组合对象，如 Tube、Board，提供 prepareCvRender。 */
+export interface ICvRenderable {
+    prepareCvRender(idToColor: Map<number, number>): { tintables: CvTintable[]; restore: () => void };
+}

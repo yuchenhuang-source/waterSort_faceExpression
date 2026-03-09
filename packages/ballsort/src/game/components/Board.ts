@@ -7,6 +7,7 @@ import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
 import { encodeIdToColor } from '../render/ObjectIdPipeline';
+import { type CvTintable, type ICvRenderable } from '../render/CvColorCode';
 
 /**
  * 表示一个可能的移动
@@ -18,7 +19,7 @@ interface Move {
     score: number;      // 移动的评分
 }
 
-export class Board extends Phaser.GameObjects.Container {
+export class Board extends Phaser.GameObjects.Container implements ICvRenderable {
     private tubes: Tube[] = [];
     private selectedTube: Tube | null = null;
     public getSelectedTube(): Tube | null { return this.selectedTube; }
@@ -139,37 +140,38 @@ export class Board extends Phaser.GameObjects.Container {
         return ids;
     }
 
-    /** Color-coded ID rendering using provided random color map. Returns restore function. */
-    public applyIdRenderMode(idToColor: Map<number, number>): () => void {
+    /** ICvRenderable: collect hand + tube tintables, return { tintables, restore }. Tint applied by Game via applyCvTintables. */
+    public prepareCvRender(idToColor: Map<number, number>): { tintables: CvTintable[]; restore: () => void } {
         const savedLiquidVis = this.boardLiquidGraphics?.visible ?? false;
         // Refresh liquid state so surface sprites have correct positions before we reuse them
         this.drawAllLiquids();
         // boardLiquidGraphics 保持显示（不隐藏合并液体）
 
-        let handRestore: (() => void) | null = null;
+        const handTintables: CvTintable[] = [];
         if (this.hand) {
             const savedHandVis = this.hand.visible;
-            const handColor = idToColor.get(500); // hand ID is 500, above ball range (100-237)
-            if (handColor !== undefined && savedHandVis) {
-                this.hand.setTintFill(handColor);
-                this.hand.setVisible(true);
-            }
-            handRestore = () => {
-                this.hand!.clearTint();
-                this.hand!.setVisible(savedHandVis);
-            };
+            handTintables.push({
+                obj: this.hand,
+                id: 500, // hand ID is 500, above ball range (100-237)
+                restore: () => {
+                    this.hand!.clearTint();
+                    this.hand!.setVisible(savedHandVis);
+                },
+            });
         }
 
-        const tubeRestores = this.tubes.map(tube => tube.applyIdRenderMode(idToColor));
+        const tubeResults = this.tubes.map((tube) => tube.prepareCvRender(idToColor));
+        const tintables = [...handTintables, ...tubeResults.flatMap((r) => r.tintables)];
 
-        return () => {
+        const restore = () => {
             if (this.boardLiquidGraphics) {
                 this.boardLiquidGraphics.setVisible(savedLiquidVis);
                 this.requestLiquidRedraw();
             }
-            handRestore?.();
-            tubeRestores.forEach(r => r());
+            tubeResults.forEach((r) => r.restore());
         };
+
+        return { tintables, restore };
     }
 
     /** 场景重启时移除监听，避免已销毁的 Board 在 resize/update 时被调用导致 TypeError */

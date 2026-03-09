@@ -12,6 +12,7 @@ import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 import { isCVModeEnabled, getCVBridge, destroyCVBridge } from '../cv-bridge/CVBridge';
 import { resetCvIds } from '../cvIdGenerator';
 import { generateColorMap, extractValidPixels, ColorMap } from '../render/ObjectIdPipeline';
+import { applyCvTintables } from '../render/CvColorCode';
 // CV 录制功能已暂时注释。按 S 单步发送帧仍可用。恢复时取消下方注释并恢复 App/DeviceSimulator/CVRecordControls 中的相关代码。
 // import JSZip from 'jszip';
 // import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from '../cvRecordEvents';
@@ -482,15 +483,10 @@ export class Game extends Scene
         // Reuse the stable color map (same colors every frame)
         const { colorMap, idToColor } = this.ensureColorMap();
 
-        // Apply ID mode to board (tubes + balls + hand)
-        const restoreBoard = this.board.applyIdRenderMode(idToColor);
-
-        // Apply ID mode to all registered CV tintables (background, icon, download, etc.)
-        this.cvTintables.forEach(({ obj, id }) => {
-            if (obj && typeof (obj as any).setTintFill === 'function') {
-                (obj as any).setTintFill(idToColor.get(id) ?? 0x888888);
-            }
-        });
+        // Board prepares CV render (hand + tubes), Game applies tint to all tintables in one call
+        const boardResult = this.board.prepareCvRender(idToColor);
+        const allTintables = [...this.cvTintables, ...boardResult.tintables];
+        const restoreTint = applyCvTintables(allTintables, idToColor);
 
         // Hide non-tagged UI elements (cvStepText, debugText; centerDownloadText 已注册 cvTintable 502，与按钮一起 tint)
         const savedCvText = this.cvStepText?.visible;
@@ -513,13 +509,9 @@ export class Game extends Scene
         const keepBlended = getOutputConfigValue<boolean>('cv.keepBlendedPixels', false);
         const pixels = extractValidPixels(this.game.canvas, colorMap, 4, { keepBlendedPixels: keepBlended });
 
-        // Restore everything
-        restoreBoard();
-        this.cvTintables.forEach(({ obj }) => {
-            if (obj && typeof (obj as any).clearTint === 'function') {
-                (obj as any).clearTint();
-            }
-        });
+        // Restore: tint first, then board (Graphics, visibility)
+        restoreTint();
+        boardResult.restore();
         if (this.cvStepText) this.cvStepText.setVisible(savedCvText!);
         if (this.debugText) this.debugText.setVisible(savedDebugText!);
 

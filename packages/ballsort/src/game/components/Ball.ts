@@ -2,8 +2,9 @@ import { Scene } from 'phaser';
 import { BallColor, Config } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
 import { nextCvId } from '../cvIdGenerator';
+import { type CvTintable, type ICvTintableProvider } from '../render/CvColorCode';
 
-export class Ball extends Phaser.GameObjects.Container {
+export class Ball extends Phaser.GameObjects.Container implements ICvTintableProvider {
     // 光晕效果参数（优化性能：禁用光晕以提升到60fps）
     private static readonly GLOW_LAYER_COUNT = 0; // 从1改为0，完全禁用光晕
     private static readonly GLOW_BASE_SCALE = 1.15; // 最内层光晕缩放倍数
@@ -69,27 +70,26 @@ export class Ball extends Phaser.GameObjects.Container {
     public isLiquidVisible(): boolean { return this.liquidSprite.visible; }
     public isExpressionVisible(): boolean { return !!this.ballExpressionSprite?.visible; }
 
-    /** Color-coded ID rendering: ball uses cvId; liquid/expression use IDs 1000/1001 when visible. Returns restore function. */
-    public applyIdRenderMode(idToColor: Map<number, number>): () => void {
-        const ballColor = idToColor.get(this.cvId) ?? 0x888888;
-        const liquidColor = idToColor.get(1000) ?? 0x888888;
-        const exprColor = idToColor.get(1001) ?? 0x888888;
-        const saved = {
-            ballVis: this.ballImage.visible,
-            liquidVis: this.liquidSprite.visible,
-            liquidTint: this.liquidSprite.visible ? getLiquidColors()[this.color] : null,
-            exprVis: this.ballExpressionSprite?.visible ?? false,
-        };
-        if (this.ballImage.visible) this.ballImage.setTintFill(ballColor);
-        if (this.liquidSprite.visible) this.liquidSprite.setTintFill(liquidColor); // ID 1000
-        if (this.ballExpressionSprite?.visible) this.ballExpressionSprite.setTintFill(exprColor); // ID 1001
-        return () => {
-            this.ballImage.clearTint();
-            if (saved.liquidTint !== null) this.liquidSprite.setTintFill(saved.liquidTint);
-            else this.liquidSprite.clearTint();
-            if (this.ballExpressionSprite && saved.exprVis) this.ballExpressionSprite.clearTint();
-        };
+    /** ICvTintableProvider: return tintables for ball, liquid, expression. No visible filtering; applyCvTintables filters by obj.visible. */
+    public getCvTintables(): CvTintable[] {
+        const liquidTint = this.liquidSprite.visible ? getLiquidColors()[this.color] : null;
+        const result: CvTintable[] = [
+            { obj: this.ballImage, id: this.cvId },
+            {
+                obj: this.liquidSprite,
+                id: 1000,
+                restore: () => {
+                    if (liquidTint !== null) this.liquidSprite.setTintFill(liquidTint);
+                    else this.liquidSprite.clearTint();
+                },
+            },
+        ];
+        if (this.ballExpressionSprite) {
+            result.push({ obj: this.ballExpressionSprite, id: 1001 });
+        }
+        return result;
     }
+
 
     /**
      * 将颜色变浅（与白色混合），用于光晕效果

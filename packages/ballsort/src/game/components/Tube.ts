@@ -7,8 +7,9 @@ import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
 import { encodeIdToColor } from '../render/ObjectIdPipeline';
 import { nextCvId } from '../cvIdGenerator';
+import { type CvTintable, type ICvRenderable } from '../render/CvColorCode';
 
-export class Tube extends Phaser.GameObjects.Container {
+export class Tube extends Phaser.GameObjects.Container implements ICvRenderable {
     private tubeBodyImage: Phaser.GameObjects.Image;
     private tubeMouthImage: Phaser.GameObjects.Image;
     private highlightBodyImage: Phaser.GameObjects.Image;
@@ -284,8 +285,8 @@ export class Tube extends Phaser.GameObjects.Container {
         this.requestDrawLiquid();
     }
 
-    /** Color-coded ID rendering: tintFill tube textures + liquid with random colors from idToColor map. Returns restore function. */
-    public applyIdRenderMode(idToColor: Map<number, number>): () => void {
+    /** ICvRenderable: Graphics draw + collect tintables. Restore does not include tint (handled by applyCvTintables). */
+    public prepareCvRender(idToColor: Map<number, number>): { tintables: CvTintable[]; restore: () => void } {
         const saved = {
             bodyVis: this.tubeBodyImage.visible,
             mouthVis: this.tubeMouthImage.visible,
@@ -298,19 +299,26 @@ export class Tube extends Phaser.GameObjects.Container {
             fireVis: this.fireSprite?.visible ?? false,
         };
 
-        const tubeColor = idToColor.get(this.cvId) ?? 0x888888;
-
-        // 1. Liquid rects: draw per-ball ID colors into local Graphics, add to liquidContainer (same pipeline as normal)
+        // 1. Liquid rects: draw per-ball ID colors into local Graphics, add to liquidContainer
         const liquidFill = this.scene.add.graphics();
         const liquidInfo = this.drawLiquidIdLocal(liquidFill, idToColor);
         this.liquidContainer.addAt(liquidFill, 0); // behind surface sprites, clipped by container's mask
 
-        // 2. Surface sprites: reuse existing liquidContainer sprites, only update tints to ID colors
-        //    (Board called drawAllLiquids before applyIdRenderMode, so positions are correct)
+        // 2. Build tintables (tube + surface + boundary + addingBlock + balls). applyCvTintables will tint visible ones.
+        this.tubeMouthImage.setVisible(true);
+        this.tubeBodyImage.setVisible(true);
+        this.bringToTop(this.tubeMouthImage);
+        this.bringToTop(this.tubeBodyImage);
+
+        const tintables: CvTintable[] = [
+            { obj: this.tubeBodyImage, id: this.cvId },
+            { obj: this.tubeMouthImage, id: this.cvId },
+        ];
+
         if (liquidInfo.topBallId !== null) {
             const hideTopSurface = liquidInfo.isReturnWaterRise && this.addingBallColor !== null && this.addingBallHeight <= 0;
             if (!hideTopSurface) {
-                this.surfaceSprite.setTintFill(idToColor.get(liquidInfo.topBallId) ?? 0x888888);
+                tintables.push({ obj: this.surfaceSprite, id: liquidInfo.topBallId });
             }
         }
         const isWaterRising = this.addingBallColor !== null;
@@ -318,30 +326,19 @@ export class Tube extends Phaser.GameObjects.Container {
             for (let i = 0; i < liquidInfo.groupBoundaries.length; i++) {
                 const b = liquidInfo.groupBoundaries[i];
                 if (i < this.boundarySurfaceSprites.length) {
-                    this.boundarySurfaceSprites[i].setTintFill(idToColor.get(b.ballId) ?? 0x888888);
+                    tintables.push({ obj: this.boundarySurfaceSprites[i], id: b.ballId });
                 }
             }
         }
         if (liquidInfo.addingTopBallId !== null && liquidInfo.addBoundaryY !== null && !liquidInfo.isReturnWaterRise && this.addingBlockBottomSurfaceSprite) {
-            this.addingBlockBottomSurfaceSprite.setTintFill(idToColor.get(liquidInfo.addingTopBallId) ?? 0x888888);
+            tintables.push({ obj: this.addingBlockBottomSurfaceSprite, id: liquidInfo.addingTopBallId });
         }
 
-        // 3. Tube textures: tintFill to match the actual tube shape
-        this.tubeMouthImage.setTintFill(tubeColor);
-        this.tubeMouthImage.setVisible(true);
-        this.tubeBodyImage.setTintFill(tubeColor);
-        this.tubeBodyImage.setVisible(true);
-        this.bringToTop(this.tubeMouthImage);
-        this.bringToTop(this.tubeBodyImage);
+        tintables.push(...this.balls.flatMap((b) => b.getCvTintables()));
 
-        // 4. 对每个球应用 ID 着色（ballImage 用 ball.cvId；liquidSprite 用 1000；ballExpressionSprite 用 1001）
-        const ballRestores = this.balls.map((ball) => ball.applyIdRenderMode(idToColor));
-        return () => {
+        const restore = () => {
             liquidFill.destroy();
-            ballRestores.forEach(r => r());
-            this.tubeBodyImage.clearTint();
             this.tubeBodyImage.setVisible(saved.bodyVis);
-            this.tubeMouthImage.clearTint();
             this.tubeMouthImage.setVisible(saved.mouthVis);
             this.highlightBodyImage.setVisible(saved.hlBodyVis);
             this.highlightBodyImage.setAlpha(saved.hlBodyAlpha);
@@ -352,11 +349,13 @@ export class Tube extends Phaser.GameObjects.Container {
             if (this.fireSprite) this.fireSprite.setVisible(saved.fireVis);
             // Board restore will call requestLiquidRedraw -> drawAllLiquids -> updateSurfaceSprites to restore surface tints
         };
+
+        return { tintables, restore };
     }
 
     /**
      * Draw liquid blocks with ball colors (from idToColor) into a LOCAL-coordinate Graphics (a child of this Tube).
-     * Used by applyIdRenderMode so the liquid renders ABOVE tubeFill in z-order.
+     * Used by prepareCvRender so the liquid renders ABOVE tubeFill in z-order.
      * Returns boundary info so the caller can create matching liquid_surface sprites.
      */
     private drawLiquidIdLocal(
