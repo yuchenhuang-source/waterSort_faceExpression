@@ -61,6 +61,9 @@ export class Game extends Scene
     private _colorMap: ColorMap | null = null;
     private _idToColor: Map<number, number> | null = null;
 
+    /** CV 模式需要 tint 的对象（通用逻辑，新增对象只需 registerCvTintable） */
+    private cvTintables: Array<{ obj: Phaser.GameObjects.GameObject; id: number }> = [];
+
     constructor ()
     {
         super('Game');
@@ -79,6 +82,8 @@ export class Game extends Scene
         this.currentDifficulty = data?.difficulty ?? 1;
         this.currentEmptyTubeCount = data?.emptyTubeCount ?? 2;
 
+        // 清空 CV tint 注册表（场景重启时避免重复）
+        this.cvTintables = [];
         // 创建全屏背景（作为普通 GameObject，CV 模式 tint 处理）
         this.createBackground();
 
@@ -488,12 +493,12 @@ export class Game extends Scene
         // Apply ID mode to board (tubes + balls + hand)
         const restoreBoard = this.board.applyIdRenderMode(idToColor);
 
-        // Apply ID mode to background (9999) and UI buttons (501=icon, 502=download)
-        if (this.backgroundImage) {
-            this.backgroundImage.setTintFill(idToColor.get(Game.ID_BACKGROUND) ?? 0x888888);
-        }
-        this.iconBtn.setTintFill(idToColor.get(501) ?? 0x888888);
-        this.centerBtn.setTintFill(idToColor.get(502) ?? 0x888888);
+        // Apply ID mode to all registered CV tintables (background, icon, download, etc.)
+        this.cvTintables.forEach(({ obj, id }) => {
+            if (obj && typeof (obj as any).setTintFill === 'function') {
+                (obj as any).setTintFill(idToColor.get(id) ?? 0x888888);
+            }
+        });
 
         // Hide non-tagged UI elements (centerDownloadText, victoryPopup, victoryOverlay 保持显示)
         const savedCvText = this.cvStepText?.visible;
@@ -518,9 +523,11 @@ export class Game extends Scene
 
         // Restore everything
         restoreBoard();
-        if (this.backgroundImage) this.backgroundImage.clearTint();
-        this.iconBtn.clearTint();
-        this.centerBtn.clearTint();
+        this.cvTintables.forEach(({ obj }) => {
+            if (obj && typeof (obj as any).clearTint === 'function') {
+                (obj as any).clearTint();
+            }
+        });
         if (this.cvStepText) this.cvStepText.setVisible(savedCvText!);
         if (this.debugText) this.debugText.setVisible(savedDebugText!);
 
@@ -642,6 +649,11 @@ export class Game extends Scene
         this.backgroundImage = this.add.image(width / 2, height / 2, bgKey);
         this.backgroundImage.setDisplaySize(width, height);
         this.backgroundImage.setDepth(-1000);
+        this.registerCvTintable(this.backgroundImage, Game.ID_BACKGROUND);
+    }
+
+    private registerCvTintable(obj: Phaser.GameObjects.GameObject, id: number) {
+        this.cvTintables.push({ obj, id });
     }
 
     private updateBackground() {
@@ -677,6 +689,7 @@ export class Game extends Scene
         this.iconBtn.setOrigin(0, 0);
         this.iconBtn.setInteractive();
         this.iconBtn.on('pointerdown', () => download());
+        this.registerCvTintable(this.iconBtn, 501);
 
         const btnCfg = this.getDownloadBtnConfig(isPortrait);
         const { px: btnX, py: btnY } = this.btnPosFromNorm(width, height, btnCfg.x, btnCfg.y);
@@ -691,6 +704,7 @@ export class Game extends Scene
         this.centerBtn = this.add.image(0, 0, 'download');
         this.centerBtn.setDisplaySize(targetWidth, targetHeight);
         this.centerBtnContainer.add(this.centerBtn);
+        this.registerCvTintable(this.centerBtn, 502);
 
         // 添加多语言文字
         const downloadText = this.add.text(0, 0, getDownloadText(), {
