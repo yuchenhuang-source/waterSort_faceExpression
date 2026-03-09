@@ -8,6 +8,8 @@ entry in colorMap (Euclidean distance in RGB space, threshold 25).
 ID ranges (from game):
   Tubes:    0 ~ N-1
   Balls:    100 + tubeId*10 + slotIndex
+  Liquid:   1000 (升起的水球液体动画，点击试管后出现)
+  Expression: 1001 (升起的水球表情，点击试管后出现)
   Hand:     500
   Icon:     501
   Download: 502

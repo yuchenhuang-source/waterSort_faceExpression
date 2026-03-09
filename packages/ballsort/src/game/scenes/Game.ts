@@ -224,9 +224,12 @@ export class Game extends Scene
         // EventBus.on(CV_RECORD_END, this.onCVRecordEnd, this);
 
         bridge.connect().then(() => {
-            // 录制已注释，autoMode 与普通模式均使用按 S 单步
-            if (this.cvStepText) this.cvStepText.setText(autoMode ? 'CV: Paused - Press S to step (录制已暂时关闭)' : 'CV: Paused - Press S to step');
-            const handler = (e: KeyboardEvent) => { if (e.key === 's' || e.key === 'S') this.stepOneFrame(); };
+            // 录制已注释。R 恢复运行以便点击试管，S 截帧（截帧时需场景运行中才有升起的水球和表情）
+            if (this.cvStepText) this.cvStepText.setText(autoMode ? 'CV: R恢复 S截帧 (录制已暂时关闭)' : 'CV: R恢复 S截帧');
+            const handler = (e: KeyboardEvent) => {
+                if (e.key === 's' || e.key === 'S') this.stepOneFrame();
+                else if (e.key === 'r' || e.key === 'R') { this.scene.resume(); if (this.cvStepText) this.cvStepText.setText('CV: 运行中 - 点击试管后按 S 截帧'); }
+            };
             document.addEventListener('keydown', handler);
             this.events.once('shutdown', () => document.removeEventListener('keydown', handler));
             this.scene.pause();
@@ -404,6 +407,8 @@ export class Game extends Scene
             const balls = objects
                 .filter(o => o.id >= 100 && o.id < 500)
                 .map(o => ({ ...o, tubeId: Math.floor((o.id - 100) / 10), index: (o.id - 100) % 10 }));
+            const liquidDetected = objects.some(o => o.id === 1000);
+            const expressionDetected = objects.some(o => o.id === 1001);
             // CV 录制已暂时注释：不再 push 到 cvDetectionHistory
             // if (this.cvAutoStepRunning) {
             //     this.cvDetectionHistory.push({
@@ -413,7 +418,8 @@ export class Game extends Scene
             //     });
             //     console.log('[CV-RECORD] frame', this.cvDetectionHistory.length);
             // }
-            if (this.cvStepText) this.cvStepText.setText(autoMode ? `CV: Step ${this.cvStepCount}` : `CV: Step ${this.cvStepCount} - Press S`);
+            const liquidExpr = ` | 液体${liquidDetected?'✓':'-'} 表情${expressionDetected?'✓':'-'}`;
+            if (this.cvStepText) this.cvStepText.setText(autoMode ? `CV: Step ${this.cvStepCount}${liquidExpr}` : `CV: Step ${this.cvStepCount}${liquidExpr} - Press S`);
             if (!autoMode) {
                 this.scene.resume();
                 this.events.once('postupdate', () => this.scene.pause());
@@ -439,10 +445,15 @@ export class Game extends Scene
      * ID ranges:
      *   Tubes    0-13
      *   Balls    100 + tubeId*10 + slotIndex  (max 100+13*10+7 = 237)
+     *   Liquid   1000 (升起的水球液体动画，点击试管后出现)
+     *   Expression 1001 (升起的水球表情，点击试管后出现)
      *   Hand     500  (kept > 237 to avoid collision with ball range)
      *   Icon     501
      *   Download 502
      */
+    private static readonly ID_LIQUID = 1000;
+    private static readonly ID_EXPRESSION = 1001;
+
     private ensureColorMap(): { colorMap: ColorMap; idToColor: Map<number, number> } {
         if (this._colorMap && this._idToColor) {
             return { colorMap: this._colorMap, idToColor: this._idToColor };
@@ -456,6 +467,7 @@ export class Game extends Scene
                 allIds.push(100 + t * 10 + s);
             }
         }
+        allIds.push(Game.ID_LIQUID, Game.ID_EXPRESSION); // liquid animation, ball expression (when rising)
         allIds.push(500, 501, 502); // hand, icon, download
         const result = generateColorMap(allIds);
         this._colorMap = result.colorMap;
@@ -465,7 +477,6 @@ export class Game extends Scene
 
     public captureColorCodedFrame(): { pixels: string, width: number, height: number, colorMap: ColorMap } {
         const cam = this.cameras.main;
-
         // Reuse the stable color map (same colors every frame)
         const { colorMap, idToColor } = this.ensureColorMap();
 

@@ -281,7 +281,6 @@ export class Tube extends Phaser.GameObjects.Container {
 
     /** Color-coded ID rendering: tintFill tube textures + liquid with random colors from idToColor map. Returns restore function. */
     public applyIdRenderMode(idToColor: Map<number, number>): () => void {
-        const savedBallVis = this.balls.map(b => b.visible);
         const saved = {
             bodyVis: this.tubeBodyImage.visible,
             mouthVis: this.tubeMouthImage.visible,
@@ -330,15 +329,18 @@ export class Tube extends Phaser.GameObjects.Container {
         this.bringToTop(this.tubeMouthImage);
         this.bringToTop(this.tubeBodyImage);
 
-        // highlightBodyImage, highlightMouthImage, candleImage, fireSprite, balls 保持显示（不隐藏）
-
+        // 4. 对每个球应用 ID 着色（ballImage 用 ballId；liquidSprite 用 1000；ballExpressionSprite 用 1001）
+        const ballRestores = this.balls.map((ball, idx) => {
+            const ballId = 100 + this.id * 10 + idx;
+            return ball.applyIdRenderMode(ballId, idToColor);
+        });
         return () => {
             liquidFill.destroy();
+            ballRestores.forEach(r => r());
             this.tubeBodyImage.clearTint();
             this.tubeBodyImage.setVisible(saved.bodyVis);
             this.tubeMouthImage.clearTint();
             this.tubeMouthImage.setVisible(saved.mouthVis);
-            this.balls.forEach((b, i) => b.setVisible(savedBallVis[i]));
             this.highlightBodyImage.setVisible(saved.hlBodyVis);
             this.highlightBodyImage.setAlpha(saved.hlBodyAlpha);
             this.highlightMouthImage.setVisible(saved.hlMouthVis);

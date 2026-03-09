@@ -1,7 +1,6 @@
 import { Scene } from 'phaser';
 import { BallColor, Config } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
-import { encodeIdToColor } from '../render/ObjectIdPipeline';
 
 export class Ball extends Phaser.GameObjects.Container {
     // 光晕效果参数（优化性能：禁用光晕以提升到60fps）
@@ -62,15 +61,29 @@ export class Ball extends Phaser.GameObjects.Container {
         scene.add.existing(this);
     }
 
-    /** Color-coded ID rendering: tintFill ballImage with ID color, hide everything else. Returns restore function. */
-    public applyIdRenderMode(id: number): () => void {
-        const saved = { ballVis: this.ballImage.visible };
-        this.ballImage.setTintFill(encodeIdToColor(id));
-        this.ballImage.setVisible(true);
-        // liquidSprite, candleImage, ballExpressionSprite, glowSprites 保持显示（不隐藏）
+    /** Whether liquid/expression are visible (rising or hovering state). Used for CV liquid/expression ID detection. */
+    public isLiquidVisible(): boolean { return this.liquidSprite.visible; }
+    public isExpressionVisible(): boolean { return !!this.ballExpressionSprite?.visible; }
+
+    /** Color-coded ID rendering: ball uses ballId; liquid/expression use IDs 1000/1001 when visible. Returns restore function. */
+    public applyIdRenderMode(ballId: number, idToColor: Map<number, number>): () => void {
+        const ballColor = idToColor.get(ballId) ?? 0x888888;
+        const liquidColor = idToColor.get(1000) ?? 0x888888;
+        const exprColor = idToColor.get(1001) ?? 0x888888;
+        const saved = {
+            ballVis: this.ballImage.visible,
+            liquidVis: this.liquidSprite.visible,
+            liquidTint: this.liquidSprite.visible ? getLiquidColors()[this.color] : null,
+            exprVis: this.ballExpressionSprite?.visible ?? false,
+        };
+        if (this.ballImage.visible) this.ballImage.setTintFill(ballColor);
+        if (this.liquidSprite.visible) this.liquidSprite.setTintFill(liquidColor); // ID 1000
+        if (this.ballExpressionSprite?.visible) this.ballExpressionSprite.setTintFill(exprColor); // ID 1001
         return () => {
             this.ballImage.clearTint();
-            this.ballImage.setVisible(saved.ballVis);
+            if (saved.liquidTint !== null) this.liquidSprite.setTintFill(saved.liquidTint);
+            else this.liquidSprite.clearTint();
+            if (this.ballExpressionSprite && saved.exprVis) this.ballExpressionSprite.clearTint();
         };
     }
 

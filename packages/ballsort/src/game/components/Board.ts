@@ -21,6 +21,7 @@ interface Move {
 export class Board extends Phaser.GameObjects.Container {
     private tubes: Tube[] = [];
     private selectedTube: Tube | null = null;
+    public getSelectedTube(): Tube | null { return this.selectedTube; }
     /** 合并绘制：所有试管液体使用同一个 Graphics，减少 draw call */
     private boardLiquidGraphics: Phaser.GameObjects.Graphics | null = null;
     private boardLiquidMaskGraphics: Phaser.GameObjects.Graphics | null = null;
@@ -116,6 +117,13 @@ export class Board extends Phaser.GameObjects.Container {
         if (this.hand) ids.push(500);
         ids.push(501); // icon button (always present)
         ids.push(502); // download button (always present)
+        // 点击试管后升起的球：liquid(1000) 和 expression(1001)
+        if (this.selectedTube) {
+            const topBall = this.selectedTube.getTopBall();
+            if (topBall?.isLiquidVisible()) {
+                ids.push(1000, 1001);
+            }
+        }
         return ids;
     }
 
