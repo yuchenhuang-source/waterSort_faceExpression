@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { BallColor, Config } from '../constants/GameConstants';
 import { getLiquidColors } from '../../utils/outputConfigLoader';
+import { nextCvId } from '../cvIdGenerator';
 
 export class Ball extends Phaser.GameObjects.Container {
     // 光晕效果参数（优化性能：禁用光晕以提升到60fps）
@@ -22,11 +23,14 @@ export class Ball extends Phaser.GameObjects.Container {
     private containerHoverTween: Phaser.Tweens.Tween | null = null;
     public color: BallColor;
     public isCandle: boolean = false;
+    /** CV ID (object-wise, position-independent). */
+    public cvId: number;
     private baseSize: number = Config.GAME_CONFIG.BALL_SIZE; // 基准尺寸
 
     constructor(scene: Scene, x: number, y: number, color: BallColor) {
         super(scene, x, y);
         this.color = color;
+        this.cvId = nextCvId();
 
         // 创建球的图片
         this.ballImage = scene.add.image(0, 0, `ball_${color}`);
@@ -65,9 +69,9 @@ export class Ball extends Phaser.GameObjects.Container {
     public isLiquidVisible(): boolean { return this.liquidSprite.visible; }
     public isExpressionVisible(): boolean { return !!this.ballExpressionSprite?.visible; }
 
-    /** Color-coded ID rendering: ball uses ballId; liquid/expression use IDs 1000/1001 when visible. Returns restore function. */
-    public applyIdRenderMode(ballId: number, idToColor: Map<number, number>): () => void {
-        const ballColor = idToColor.get(ballId) ?? 0x888888;
+    /** Color-coded ID rendering: ball uses cvId; liquid/expression use IDs 1000/1001 when visible. Returns restore function. */
+    public applyIdRenderMode(idToColor: Map<number, number>): () => void {
+        const ballColor = idToColor.get(this.cvId) ?? 0x888888;
         const liquidColor = idToColor.get(1000) ?? 0x888888;
         const exprColor = idToColor.get(1001) ?? 0x888888;
         const saved = {

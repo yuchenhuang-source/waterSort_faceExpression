@@ -10,6 +10,7 @@ import { getCachedPuzzle } from '../../utils/puzzleCache';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 import { isCVModeEnabled, getCVBridge, destroyCVBridge } from '../cv-bridge/CVBridge';
+import { resetCvIds } from '../cvIdGenerator';
 import { generateColorMap, extractValidPixels, ColorMap } from '../render/ObjectIdPipeline';
 // CV 录制功能已暂时注释。按 S 单步发送帧仍可用。恢复时取消下方注释并恢复 App/DeviceSimulator/CVRecordControls 中的相关代码。
 // import JSZip from 'jszip';
@@ -28,7 +29,6 @@ export class Game extends Scene
     private iconBtn: Phaser.GameObjects.Image; // 左上角icon
     private centerBtn: Phaser.GameObjects.Image; // 屏幕中心按钮
     private centerBtnContainer: Phaser.GameObjects.Container; // 按钮容器（包含图片和文字）
-    private centerDownloadText: Phaser.GameObjects.Text | null = null; // Phase 2: 用于 CV 模式时隐藏
     private resizeHandler: () => void;
     private board: Board;
     private debugText: Phaser.GameObjects.Text | null = null;
@@ -82,6 +82,9 @@ export class Game extends Scene
         this.currentDifficulty = data?.difficulty ?? 1;
         this.currentEmptyTubeCount = data?.emptyTubeCount ?? 2;
 
+        resetCvIds();
+        this._colorMap = null;
+        this._idToColor = null;
         // 清空 CV tint 注册表（场景重启时避免重复）
         this.cvTintables = [];
         // 创建全屏背景（作为普通 GameObject，CV 模式 tint 处理）
@@ -468,18 +471,7 @@ export class Game extends Scene
         if (this._colorMap && this._idToColor) {
             return { colorMap: this._colorMap, idToColor: this._idToColor };
         }
-        const allIds: number[] = [];
-        const tubeCount = this.board.getTubeCount();
-        const tubeCapacity = this.board.getTubeCapacity();
-        for (let t = 0; t < tubeCount; t++) allIds.push(t);
-        for (let t = 0; t < tubeCount; t++) {
-            for (let s = 0; s < tubeCapacity; s++) {
-                allIds.push(100 + t * 10 + s);
-            }
-        }
-        allIds.push(Game.ID_LIQUID, Game.ID_EXPRESSION); // liquid animation, ball expression (when rising)
-        allIds.push(500, 501, 502); // hand, icon, download
-        allIds.push(Game.ID_BACKGROUND); // background (same treatment as any object)
+        const allIds = [...this.board.getColorMapIds(), Game.ID_BACKGROUND];
         const result = generateColorMap(allIds);
         this._colorMap = result.colorMap;
         this._idToColor = result.idToColor;
@@ -500,7 +492,7 @@ export class Game extends Scene
             }
         });
 
-        // Hide non-tagged UI elements (centerDownloadText, victoryPopup, victoryOverlay 保持显示)
+        // Hide non-tagged UI elements (cvStepText, debugText; centerDownloadText 已注册 cvTintable 502，与按钮一起 tint)
         const savedCvText = this.cvStepText?.visible;
         const savedDebugText = this.debugText?.visible;
         if (this.cvStepText) this.cvStepText.setVisible(false);
@@ -706,7 +698,7 @@ export class Game extends Scene
         this.centerBtnContainer.add(this.centerBtn);
         this.registerCvTintable(this.centerBtn, 502);
 
-        // 添加多语言文字
+        // 添加多语言文字（与按钮同 ID 502，CV 捕获时一起 tint，避免隐藏/恢复导致不显示）
         const downloadText = this.add.text(0, 0, getDownloadText(), {
             fontFamily: 'Arial, sans-serif',
             fontSize: '32px',
@@ -715,7 +707,7 @@ export class Game extends Scene
         });
         downloadText.setOrigin(0.5, 0.5);
         this.centerBtnContainer.add(downloadText);
-        this.centerDownloadText = downloadText;
+        this.registerCvTintable(downloadText, 502);
 
         // 设置交互区域
         this.centerBtnContainer.setInteractive(

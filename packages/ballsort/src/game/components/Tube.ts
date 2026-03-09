@@ -6,6 +6,7 @@ import { getLiquidColors, getOutputConfigValueAsync } from '../../utils/outputCo
 import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
 import { encodeIdToColor } from '../render/ObjectIdPipeline';
+import { nextCvId } from '../cvIdGenerator';
 
 export class Tube extends Phaser.GameObjects.Container {
     private tubeBodyImage: Phaser.GameObjects.Image;
@@ -27,6 +28,7 @@ export class Tube extends Phaser.GameObjects.Container {
     // 液体动画相关
     private removingBallColor: BallColor | null = null;
     private removingBallHeight: number = 0;
+    private removingBallCvId: number | null = null;
     /** 球落定后水位渐升：正在加入的液体块颜色与当前高度（0→unitHeight） */
     private addingBallColor: BallColor | null = null;
     public addingBallHeight: number = 0; // 供 tween 读写
@@ -47,6 +49,8 @@ export class Tube extends Phaser.GameObjects.Container {
     private fireSprite: Phaser.GameObjects.Sprite | null = null; // 火焰动画精灵
     public balls: Ball[] = [];
     public id: number;
+    /** CV ID (object-wise, position-independent). */
+    public cvId: number;
     public isCompleted: boolean = false;
     private isSameColorHighlighted: boolean = false; // 同色高亮状态（未满但同色）
     private currentHighlightColor: BallColor | null = null; // 当前高亮颜色
@@ -81,6 +85,7 @@ export class Tube extends Phaser.GameObjects.Container {
     constructor(scene: Scene, x: number, y: number, id: number, onRequestLiquidRedraw?: () => void) {
         super(scene, x, y);
         this.id = id;
+        this.cvId = nextCvId();
         this.onRequestLiquidRedraw = onRequestLiquidRedraw ?? null;
 
         // 默认尺寸
@@ -293,7 +298,7 @@ export class Tube extends Phaser.GameObjects.Container {
             fireVis: this.fireSprite?.visible ?? false,
         };
 
-        const tubeColor = idToColor.get(this.id) ?? 0x888888;
+        const tubeColor = idToColor.get(this.cvId) ?? 0x888888;
 
         // 1. Liquid rects: draw per-ball ID colors into local Graphics, add to liquidContainer (same pipeline as normal)
         const liquidFill = this.scene.add.graphics();
@@ -329,11 +334,8 @@ export class Tube extends Phaser.GameObjects.Container {
         this.bringToTop(this.tubeMouthImage);
         this.bringToTop(this.tubeBodyImage);
 
-        // 4. 对每个球应用 ID 着色（ballImage 用 ballId；liquidSprite 用 1000；ballExpressionSprite 用 1001）
-        const ballRestores = this.balls.map((ball, idx) => {
-            const ballId = 100 + this.id * 10 + idx;
-            return ball.applyIdRenderMode(ballId, idToColor);
-        });
+        // 4. 对每个球应用 ID 着色（ballImage 用 ball.cvId；liquidSprite 用 1000；ballExpressionSprite 用 1001）
+        const ballRestores = this.balls.map((ball) => ball.applyIdRenderMode(idToColor));
         return () => {
             liquidFill.destroy();
             ballRestores.forEach(r => r());
@@ -382,9 +384,9 @@ export class Tube extends Phaser.GameObjects.Container {
         for (let i = 0; i < ballsForLiquid.length; i++) {
             if (i > 0 && ballsForLiquid[i].color !== ballsForLiquid[i - 1].color) {
                 // currentY is now at TOP of ball i-1 = BOTTOM of ball i
-                groupBoundaries.push({ y: currentY, ballId: 100 + this.id * 10 + i });
+                groupBoundaries.push({ y: currentY, ballId: ballsForLiquid[i].cvId });
             }
-            const ballId = 100 + this.id * 10 + i;
+            const ballId = ballsForLiquid[i].cvId;
             const color = idToColor.get(ballId) ?? 0x888888;
             targetGraphics.fillStyle(color, 1);
             targetGraphics.fillRect(-width / 2, currentY - unitHeight, width, unitHeight + 2);
@@ -393,8 +395,8 @@ export class Tube extends Phaser.GameObjects.Container {
         }
 
         // Removing ball animation (missing in previous implementation)
-        if (this.removingBallColor !== null && this.removingBallHeight > 0) {
-            const removingBallId = 100 + this.id * 10 + this.balls.length;
+        if (this.removingBallColor !== null && this.removingBallHeight > 0 && this.removingBallCvId !== null) {
+            const removingBallId = this.removingBallCvId;
             // boundary at TOP of removing block, colored with lower static ball (mirrors drawLiquidBlocksTo)
             groupBoundaries.push({ y: currentY - this.removingBallHeight, ballId: topBallId ?? removingBallId });
             const color = idToColor.get(removingBallId) ?? 0x888888;
@@ -408,12 +410,12 @@ export class Tube extends Phaser.GameObjects.Container {
         let addingTopBallId: number | null = null;
         if (this.addingBallColor !== null && this.balls.length > 0) {
             addBoundaryY = currentY - this.addingBallHeight;
+            const topBall = this.balls[this.balls.length - 1];
             if (this._isReturnWaterRise) {
-                groupBoundaries.push({ y: addBoundaryY, ballId: topBallId ?? (100 + this.id * 10 + (this.balls.length - 1)) });
+                groupBoundaries.push({ y: addBoundaryY, ballId: topBallId ?? topBall.cvId });
             }
             if (this.addingBallHeight > 0) {
-                const topBallIdx = this.balls.length - 1;
-                const ballId = 100 + this.id * 10 + topBallIdx;
+                const ballId = topBall.cvId;
                 addingTopBallId = ballId;
                 const color = idToColor.get(ballId) ?? 0x888888;
                 targetGraphics.fillStyle(color, 1);
@@ -437,14 +439,13 @@ export class Tube extends Phaser.GameObjects.Container {
         if (this.addingBallColor !== null && this.balls.length > 0) ballsForLiquid = this.balls.slice(0, -1);
         let currentY = bottomY;
         for (let i = 0; i < ballsForLiquid.length; i++) {
-            const ballId = 100 + this.id * 10 + i;
+            const ballId = ballsForLiquid[i].cvId;
             targetGraphics.fillStyle(encodeIdToColor(ballId), 1);
             targetGraphics.fillRect(ox + (-width / 2), oy + (currentY - unitHeight), width, unitHeight + 2);
             currentY -= unitHeight;
         }
         if (this.addingBallColor !== null && this.balls.length > 0 && this.addingBallHeight > 0) {
-            const topBallIdx = this.balls.length - 1;
-            const ballId = 100 + this.id * 10 + topBallIdx;
+            const ballId = this.balls[this.balls.length - 1].cvId;
             targetGraphics.fillStyle(encodeIdToColor(ballId), 1);
             targetGraphics.fillRect(ox + (-width / 2), oy + (currentY - this.addingBallHeight), width, this.addingBallHeight + 2);
         }
@@ -925,6 +926,7 @@ export class Tube extends Phaser.GameObjects.Container {
             
             // 启动水位下降动画
             this.removingBallColor = ball.color;
+            this.removingBallCvId = ball.cvId;
             const unitHeight = this.getUnitHeight();
             this.removingBallHeight = unitHeight;
             
@@ -940,6 +942,7 @@ export class Tube extends Phaser.GameObjects.Container {
                 },
                 onComplete: () => {
                     this.removingBallColor = null;
+                    this.removingBallCvId = null;
                     this.requestDrawLiquid();
                 }
             });

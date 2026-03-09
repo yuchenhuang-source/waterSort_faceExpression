@@ -85,15 +85,22 @@ export class Board extends Phaser.GameObjects.Container {
         this.isGameActive = true;
     }
 
-    /** Tube count (for CV color map generation). */
-    public getTubeCount(): number {
-        return this.tubes.length;
-    }
-
-    /** Max balls per tube, derived from actual tube contents (for CV color map generation). */
-    public getTubeCapacity(): number {
-        if (this.tubes.length === 0) return 1;
-        return Math.max(1, ...this.tubes.map(t => t.balls.length));
+    /**
+     * Returns all object IDs needed for the CV color map (tubes, balls, hand, icon, download, liquid, expression).
+     * Object-wise, position-independent. Used by Game.ensureColorMap.
+     */
+    public getColorMapIds(): number[] {
+        const ids: number[] = [];
+        for (const tube of this.tubes) {
+            ids.push(tube.cvId);
+            for (const ball of tube.balls) {
+                ids.push(ball.cvId);
+            }
+        }
+        if (this.hand) ids.push(500);
+        ids.push(501, 502); // icon, download
+        ids.push(1000, 1001); // liquid, expression (when rising)
+        return ids;
     }
 
     /** Returns world pixel positions for all tubes and present balls (for CV comparison). */
@@ -101,34 +108,28 @@ export class Board extends Phaser.GameObjects.Container {
         const result: Array<{ id: number; x: number; y: number; type: string }> = [];
         for (const tube of this.tubes) {
             const m = tube.getWorldTransformMatrix();
-            result.push({ id: tube.id, x: Math.round(m.tx), y: Math.round(m.ty), type: 'tube' });
-            const ballCount = tube.balls.length;
-            for (let i = 0; i < ballCount; i++) {
-                const ballId = 100 + tube.id * 10 + i;
-                result.push({ id: ballId, x: Math.round(m.tx), y: Math.round(m.ty), type: 'ball' });
+            result.push({ id: tube.cvId, x: Math.round(m.tx), y: Math.round(m.ty), type: 'tube' });
+            for (const ball of tube.balls) {
+                result.push({ id: ball.cvId, x: Math.round(m.tx), y: Math.round(m.ty), type: 'ball' });
             }
         }
         return result;
     }
 
     /**
-     * Returns all object IDs currently rendered on the board (tubes + actual balls + hand).
-     * Used by Game.ts to generate a complete color map before the ID capture pass.
+     * Returns all object IDs currently rendered on the board (tubes + balls + hand).
+     * Used by Game.ts to send activeIds to CV server. Object-wise cvIds.
      */
     public getColorCodeObjectIds(): number[] {
         const ids: number[] = [];
         for (const tube of this.tubes) {
-            ids.push(tube.id);
-            // Only include balls actually present (not empty slots)
-            const ballCount = tube.balls.length;
-            for (let i = 0; i < ballCount; i++) {
-                ids.push(100 + tube.id * 10 + i);
+            ids.push(tube.cvId);
+            for (const ball of tube.balls) {
+                ids.push(ball.cvId);
             }
         }
         if (this.hand) ids.push(500);
-        ids.push(501); // icon button (always present)
-        ids.push(502); // download button (always present)
-        // 点击试管后升起的球：liquid(1000) 和 expression(1001)
+        ids.push(501, 502); // icon, download
         if (this.selectedTube) {
             const topBall = this.selectedTube.getTopBall();
             if (topBall?.isLiquidVisible()) {
