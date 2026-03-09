@@ -57,6 +57,40 @@ export function applyCvGraphicsDrawers(
     return () => restores.forEach((r) => r());
 }
 
+// ── 遍历与 ID 收集（供 getColorMapIds 抽象）──
+
+/** 可提供 cvId 的对象（Ball、Tube 等）。 */
+export interface ICvIdProvider {
+  cvId: number;
+}
+
+/** 可遍历子对象的容器（Board、Tube 等）。 */
+export interface ICvTraversable {
+  getCvChildren(): Array<ICvIdProvider | ICvTraversable>;
+}
+
+/**
+ * 从根节点递归收集所有 cvId，合并 staticIds。
+ * 用于 getColorMapIds 的通用实现。
+ */
+export function collectAllCvIds(
+  root: ICvTraversable,
+  staticIds: number[] = []
+): number[] {
+  const ids = new Set<number>(staticIds);
+
+  function visit(node: ICvIdProvider | ICvTraversable): void {
+    if ('cvId' in node) ids.add(node.cvId);
+    if ('getCvChildren' in node) {
+      for (const child of (node as ICvTraversable).getCvChildren()) {
+        visit(child);
+      }
+    }
+  }
+  visit(root);
+  return Array.from(ids);
+}
+
 // ── 对象接口（供脚本 implement）──
 
 /** 叶子对象，如 Ball，提供 getCvTintables。 */

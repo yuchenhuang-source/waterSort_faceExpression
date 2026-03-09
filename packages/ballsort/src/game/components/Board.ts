@@ -7,7 +7,7 @@ import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter, validatePuzzle, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
 import { isPerfEnabled, recordDrawLiquid } from '../../utils/perfLogger';
 import { encodeIdToColor } from '../render/ObjectIdPipeline';
-import { type CvTintable, type ICvRenderable } from '../render/CvColorCode';
+import { type CvTintable, type ICvRenderable, type ICvTraversable } from '../render/CvColorCode';
 
 /**
  * 表示一个可能的移动
@@ -19,7 +19,7 @@ interface Move {
     score: number;      // 移动的评分
 }
 
-export class Board extends Phaser.GameObjects.Container implements ICvRenderable {
+export class Board extends Phaser.GameObjects.Container implements ICvRenderable, ICvTraversable {
     private tubes: Tube[] = [];
     private selectedTube: Tube | null = null;
     public getSelectedTube(): Tube | null { return this.selectedTube; }
@@ -86,22 +86,9 @@ export class Board extends Phaser.GameObjects.Container implements ICvRenderable
         this.isGameActive = true;
     }
 
-    /**
-     * Returns all object IDs needed for the CV color map (tubes, balls, hand, icon, download, liquid, expression).
-     * Object-wise, position-independent. Used by Game.ensureColorMap.
-     */
-    public getColorMapIds(): number[] {
-        const ids: number[] = [];
-        for (const tube of this.tubes) {
-            ids.push(tube.cvId);
-            for (const ball of tube.balls) {
-                ids.push(ball.cvId);
-            }
-        }
-        if (this.hand) ids.push(500);
-        ids.push(501, 502); // icon, download
-        ids.push(1000, 1001); // liquid, expression (when rising)
-        return ids;
+    /** ICvTraversable: 返回 tubes，hand/icon/download/liquid/expression 通过 getStaticCvIds 传入 */
+    public getCvChildren(): Tube[] {
+        return this.tubes;
     }
 
     /** Returns world pixel positions for all tubes and present balls (for CV comparison). */

@@ -6,6 +6,7 @@ import { WEBGL, Game } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 import { SpineTestScene } from './scenes/SpineTestScene';
 import { SpinePlugin } from '@esotericsoftware/spine-phaser-v3';
+import { CvAutoInitPlugin } from './cv-integration/CvAutoInitPlugin';
 
 //  Find out more information about the Game Config at:
 //  https://newdocs.phaser.io/docs/3.70.0/Phaser.Types.Core.GameConfig
@@ -37,7 +38,8 @@ const config: Phaser.Types.Core.GameConfig = {
     ],
     plugins: {
         scene: [
-            { key: 'spine.SpinePlugin', plugin: SpinePlugin, mapping: 'spine' }
+            { key: 'spine.SpinePlugin', plugin: SpinePlugin, mapping: 'spine' },
+            { key: 'CvAutoInit', plugin: CvAutoInitPlugin, mapping: 'cvAutoInit' }
         ]
     }
 };

@@ -7,9 +7,9 @@ import { EventBus } from '../EventBus';
 import { SpineLoader } from '../utils/SpineLoader';
 import { encodeIdToColor } from '../render/ObjectIdPipeline';
 import { nextCvId } from '../cvIdGenerator';
-import { type CvTintable, type ICvRenderable } from '../render/CvColorCode';
+import { type CvTintable, type ICvRenderable, type ICvTraversable } from '../render/CvColorCode';
 
-export class Tube extends Phaser.GameObjects.Container implements ICvRenderable {
+export class Tube extends Phaser.GameObjects.Container implements ICvRenderable, ICvTraversable {
     private tubeBodyImage: Phaser.GameObjects.Image;
     private tubeMouthImage: Phaser.GameObjects.Image;
     private highlightBodyImage: Phaser.GameObjects.Image;
@@ -283,6 +283,11 @@ export class Tube extends Phaser.GameObjects.Container implements ICvRenderable 
 
         // 更新液体显示
         this.requestDrawLiquid();
+    }
+
+    /** ICvTraversable: 返回 balls */
+    public getCvChildren(): Ball[] {
+        return this.balls;
     }
 
     /** ICvRenderable: Graphics draw + collect tintables. Restore does not include tint (handled by applyCvTintables). */

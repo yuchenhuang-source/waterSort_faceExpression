@@ -4,15 +4,13 @@ import { Board } from '../components/Board';
 import { Config } from '../constants/GameConstants';
 import { isPerfEnabled, initPerf, recordBoardUpdate, tickPerf } from '../../utils/perfLogger';
 import download from './constants/download';
-import { getOutputConfigAsync, getOutputConfigValue } from '../../utils/outputConfigLoader';
+import { getOutputConfigAsync } from '../../utils/outputConfigLoader';
 import { getDownloadText } from '../../utils/i18n';
 import { getCachedPuzzle } from '../../utils/puzzleCache';
 import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
-import { isCVModeEnabled, getCVBridge, destroyCVBridge } from '../cv-bridge/CVBridge';
 import { resetCvIds } from '../cvIdGenerator';
-import { generateColorMap, extractValidPixels, ColorMap } from '../render/ObjectIdPipeline';
-import { applyCvTintables } from '../render/CvColorCode';
+import type { ICvSceneAdapter } from '../cv-integration/CvSceneAdapter';
 // CV 录制功能已暂时注释。按 S 单步发送帧仍可用。恢复时取消下方注释并恢复 App/DeviceSimulator/CVRecordControls 中的相关代码。
 // import JSZip from 'jszip';
 // import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from '../cvRecordEvents';
@@ -52,16 +50,6 @@ export class Game extends Scene
     private currentDifficulty: number = 1;
     private currentEmptyTubeCount: number = 2;
 
-    // CV Bridge (Phase 1)
-    private waitingForCV: boolean = false;
-    private cvStepText: Phaser.GameObjects.Text | null = null;
-    private cvStepCount: number = 0;
-    //private cvDetectionHistory: Array<{ timestamp: number; tubes: Array<{ id: number; x: number; y: number }>; balls: Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }> }> = [];
-
-    /** Stable color map: generated once per game session, reused every frame. */
-    private _colorMap: ColorMap | null = null;
-    private _idToColor: Map<number, number> | null = null;
-
     /** CV 模式需要 tint 的对象（通用逻辑，新增对象只需 registerCvTintable） */
     private cvTintables: Array<{ obj: Phaser.GameObjects.GameObject; id: number }> = [];
 
@@ -84,8 +72,6 @@ export class Game extends Scene
         this.currentEmptyTubeCount = data?.emptyTubeCount ?? 2;
 
         resetCvIds();
-        this._colorMap = null;
-        this._idToColor = null;
         // 清空 CV tint 注册表（场景重启时避免重复）
         this.cvTintables = [];
         // 创建全屏背景（作为普通 GameObject，CV 模式 tint 处理）
@@ -131,10 +117,7 @@ export class Game extends Scene
         this.initDebugOverlay();
         if (isPerfEnabled()) initPerf();
 
-        // CV mode: connect to CV server, enable step-on-S
-        if (isCVModeEnabled()) {
-            this.initCVMode();
-        }
+        // CV mode: 由 CvAutoInitPlugin 在 create 后自动 init（见 getCvAdapter）
 
         // 难度 1/5/9 对应关卡 1/2/3，便于 AI 轮询 console 检测
         const levelNum = this.currentDifficulty === 1 ? 1 : this.currentDifficulty === 5 ? 2 : 3;
@@ -145,6 +128,23 @@ export class Game extends Scene
             ts: new Date().toISOString()
         });
         EventBus.emit('current-scene-ready', this);
+    }
+
+    /** CvAutoInitPlugin 在 create 后调用，返回 adapter 则自动 init CV */
+    getCvAdapter(): ICvSceneAdapter {
+        return {
+            getStaticCvIds: () => [500, 501, 502, 1000, 1001],
+            getRootRenderable: () => this.board,
+            getStaticTintables: () => this.cvTintables,
+            getElementsToHide: () => (this.debugText ? [this.debugText] : []),
+            getActiveIds: () => this.board.getColorCodeObjectIds(),
+            formatStepSuffix: (res) => {
+                const objects = ((res.detections?.objects || []) as Array<{ id: number }>);
+                const liquidDetected = objects.some(o => o.id === 1000);
+                const expressionDetected = objects.some(o => o.id === 1001);
+                return ` | 液体${liquidDetected ? '✓' : '-'} 表情${expressionDetected ? '✓' : '-'}`;
+            }
+        };
     }
 
     private bgmStarted = false;
@@ -207,60 +207,6 @@ export class Game extends Scene
             if (this.debugText) this.debugText.destroy();
             this.debugTimer = null;
             this.debugText = null;
-        });
-    }
-
-    /**
-     * CV mode: connect to CV server, show "Press S to step", handle step loop
-     */
-    private initCVMode() {
-        const bridge = getCVBridge(this.game);
-        this.cvStepText = this.add.text(this.scale.width / 2, 60, 'CV: Connecting...', {
-            fontFamily: 'monospace',
-            fontSize: '20px',
-            color: '#00ff88',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            padding: { x: 12, y: 8 }
-        });
-        this.cvStepText.setOrigin(0.5, 0);
-        this.cvStepText.setDepth(20001);
-        this.cvStepText.setScrollFactor(0);
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const autoMode = urlParams.get('auto') === '1';
-
-        this.waitingForCV = true;
-
-        // CV 录制已暂时注释：Play/Pause/End 按钮不再注册
-        // EventBus.on(CV_RECORD_PLAY, this.onCVRecordPlay, this);
-        // EventBus.on(CV_RECORD_PAUSE, this.onCVRecordPause, this);
-        // EventBus.on(CV_RECORD_END, this.onCVRecordEnd, this);
-
-        bridge.connect().then(() => {
-            // 录制已注释。R 恢复运行以便点击试管，S 截帧（截帧时需场景运行中才有升起的水球和表情）
-            if (this.cvStepText) this.cvStepText.setText(autoMode ? 'CV: R恢复 S截帧 (录制已暂时关闭)' : 'CV: R恢复 S截帧');
-            const handler = (e: KeyboardEvent) => {
-                if (e.key === 's' || e.key === 'S') this.stepOneFrame();
-                else if (e.key === 'r' || e.key === 'R') { this.scene.resume(); if (this.cvStepText) this.cvStepText.setText('CV: 运行中 - 点击试管后按 S 截帧'); }
-            };
-            document.addEventListener('keydown', handler);
-            this.events.once('shutdown', () => document.removeEventListener('keydown', handler));
-            this.scene.pause();
-        }).catch((err) => {
-            console.error('[CV] Failed to connect', err);
-            if (this.cvStepText) this.cvStepText.setText('CV: Connection failed');
-        });
-
-        this.events.once('shutdown', () => {
-            this.cvAutoStepRunning = false;
-            // EventBus.off(CV_RECORD_PLAY, this.onCVRecordPlay, this);
-            // EventBus.off(CV_RECORD_PAUSE, this.onCVRecordPause, this);
-            // EventBus.off(CV_RECORD_END, this.onCVRecordEnd, this);
-            destroyCVBridge();
-            if (this.cvStepText) {
-                this.cvStepText.destroy();
-                this.cvStepText = null;
-            }
         });
     }
 
@@ -379,154 +325,6 @@ export class Game extends Scene
     }
     */
 
-    private cvAutoStepRunning = false;
-
-    /* startAutoStepLoop 已暂时注释
-    private startAutoStepLoop() {
-        this.cvAutoStepRunning = true;
-        const loop = async () => {
-            while (this.cvAutoStepRunning) {
-                await this.stepOneFrame();
-                await new Promise<void>((r) => setTimeout(r, 100));
-            }
-        };
-        loop();
-    }
-    */
-
-    private async stepOneFrame() {
-        const bridge = getCVBridge(this.game);
-        if (!bridge.isConnected()) {
-            console.log('[CV-RECORD] stepOneFrame skipped: bridge not connected');
-            return;
-        }
-        const urlParams = new URLSearchParams(window.location.search);
-        const autoMode = urlParams.get('auto') === '1';
-
-        if (autoMode && this.waitingForCV) return;
-        this.waitingForCV = true;
-
-        if (this.cvStepText) this.cvStepText.setText('CV: Processing...');
-
-        try {
-            const { pixels, width, height, colorMap } = this.captureColorCodedFrame();
-            // Send activeIds to server so Python filters before broadcasting to CV UI
-            const activeIds = this.board.getColorCodeObjectIds();
-            const response = await bridge.sendFrameAndWait({ pixels, width, height }, colorMap, activeIds);
-            this.cvStepCount++;
-            const detections = response.detections || {};
-            const objects = (detections.objects || []) as Array<{ id: number; x: number; y: number; tubeId?: number; index?: number }>;
-            //const tubes = objects.filter(o => o.id < 100);
-            //const balls = objects
-            //    .filter(o => o.id >= 100 && o.id < 500)
-            //    .map(o => ({ ...o, tubeId: Math.floor((o.id - 100) / 10), index: (o.id - 100) % 10 }));
-            const liquidDetected = objects.some(o => o.id === 1000);
-            const expressionDetected = objects.some(o => o.id === 1001);
-            // CV 录制已暂时注释：不再 push 到 cvDetectionHistory
-            // if (this.cvAutoStepRunning) {
-            //     this.cvDetectionHistory.push({
-            //         timestamp: Date.now(),
-            //         tubes: tubes.map(t => ({ id: t.id, x: t.x, y: t.y })),
-            //         balls: balls.map(b => ({ id: b.id, x: b.x, y: b.y, tubeId: b.tubeId, index: b.index }))
-            //     });
-            //     console.log('[CV-RECORD] frame', this.cvDetectionHistory.length);
-            // }
-            const liquidExpr = ` | 液体${liquidDetected?'✓':'-'} 表情${expressionDetected?'✓':'-'}`;
-            if (this.cvStepText) this.cvStepText.setText(autoMode ? `CV: Step ${this.cvStepCount}${liquidExpr}` : `CV: Step ${this.cvStepCount}${liquidExpr} - Press S`);
-            if (!autoMode) {
-                this.scene.resume();
-                this.events.once('postupdate', () => this.scene.pause());
-            }
-        } catch (err) {
-            console.error('[CV-COLOR] error:', err);
-            this.cvAutoStepRunning = false;
-            if (this.cvStepText) this.cvStepText.setText('CV: Error - Press S');
-        } finally {
-            if (autoMode) this.waitingForCV = false;
-        }
-    }
-
-    /**
-     * Capture a color-coded frame for CV detection.
-     * Each game object is rendered as a flat colored shape using its unique ID color.
-     * Uses forced render: save state → apply ID colors → render → capture → restore → render.
-     */
-    /**
-     * Build the color map once per game session and cache it.
-     * Colors cover all possible tube/ball/hand/button IDs so they never change between frames.
-     *
-     * ID ranges:
-     *   Tubes    0-13
-     *   Balls    100 + tubeId*10 + slotIndex  (max 100+13*10+7 = 237)
-     *   Liquid   1000 (升起的水球液体动画，点击试管后出现)
-     *   Expression 1001 (升起的水球表情，点击试管后出现)
-     *   Hand     500  (kept > 237 to avoid collision with ball range)
-     *   Icon     501
-     *   Download 502
-     */
-    private static readonly ID_LIQUID = 1000;
-    private static readonly ID_EXPRESSION = 1001;
-    private static readonly ID_BACKGROUND = 9999;
-
-    private ensureColorMap(): { colorMap: ColorMap; idToColor: Map<number, number> } {
-        if (this._colorMap && this._idToColor) {
-            return { colorMap: this._colorMap, idToColor: this._idToColor };
-        }
-        const allIds = [...this.board.getColorMapIds(), Game.ID_BACKGROUND];
-        const result = generateColorMap(allIds);
-        this._colorMap = result.colorMap;
-        this._idToColor = result.idToColor;
-        return result;
-    }
-
-    public captureColorCodedFrame(): { pixels: string, width: number, height: number, colorMap: ColorMap } {
-        // Reuse the stable color map (same colors every frame)
-        const { colorMap, idToColor } = this.ensureColorMap();
-
-        // Board prepares CV render (hand + tubes), Game applies tint to all tintables in one call
-        const boardResult = this.board.prepareCvRender(idToColor);
-        const allTintables = [...this.cvTintables, ...boardResult.tintables];
-        const restoreTint = applyCvTintables(allTintables, idToColor);
-
-        // Hide non-tagged UI elements (cvStepText, debugText; centerDownloadText 已注册 cvTintable 502，与按钮一起 tint)
-        const savedCvText = this.cvStepText?.visible;
-        const savedDebugText = this.debugText?.visible;
-        if (this.cvStepText) this.cvStepText.setVisible(false);
-        if (this.debugText) this.debugText.setVisible(false);
-
-        // Force render the ID-colored scene
-        const renderer = this.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
-        renderer.preRender();
-        this.children.depthSort();
-        (this.cameras as any).render(renderer, this.children, 1);
-        renderer.postRender();
-
-        // Delegate canvas capture + blend filtering to the generic CV utility.
-        // extractValidPixels: downsamples 4x with nearest-neighbor, rejects
-        // semi-transparent edges (alpha < 200), snaps to nearest grid color,
-        // and applies per-channel tolerance to discard GPU-blended boundary pixels.
-        // Set cv.keepBlendedPixels: true in output-config.json to retain blended edge pixels.
-        const keepBlended = getOutputConfigValue<boolean>('cv.keepBlendedPixels', false);
-        const pixels = extractValidPixels(this.game.canvas, colorMap, 4, { keepBlendedPixels: keepBlended });
-
-        // Restore: tint first, then board (Graphics, visibility)
-        restoreTint();
-        boardResult.restore();
-        if (this.cvStepText) this.cvStepText.setVisible(savedCvText!);
-        if (this.debugText) this.debugText.setVisible(savedDebugText!);
-
-        // Force render to restore normal view
-        renderer.preRender();
-        this.children.depthSort();
-        (this.cameras as any).render(renderer, this.children, 1);
-        renderer.postRender();
-
-        const CV_DOWNSAMPLE = 4;
-        const w = Math.round(this.game.canvas.width / CV_DOWNSAMPLE);
-        const h = Math.round(this.game.canvas.height / CV_DOWNSAMPLE);
-        return { pixels, width: w, height: h, colorMap };
-    }
-
     private updateDebugOverlay() {
         if (!this.debugText || !this.board) return;
 
@@ -633,7 +431,7 @@ export class Game extends Scene
         this.backgroundImage = this.add.image(width / 2, height / 2, bgKey);
         this.backgroundImage.setDisplaySize(width, height);
         this.backgroundImage.setDepth(-1000);
-        this.registerCvTintable(this.backgroundImage, Game.ID_BACKGROUND);
+        this.registerCvTintable(this.backgroundImage, 9999);
     }
 
     private registerCvTintable(obj: Phaser.GameObjects.GameObject, id: number) {

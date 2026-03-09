@@ -1,5 +1,6 @@
 # 项目文档
 
+- [CvColorCode 接入指南](./CvColorCode接入指南.md) - 新 Phaser 项目接入 CV 颜色编码 API
 - [复现问题调试计划](./复现问题调试计划.md)
 - [配置变量与 Dev 热更新](./配置变量与Dev热更新.md)
 - [Liquid 设计](./LiquidDesign.md)
