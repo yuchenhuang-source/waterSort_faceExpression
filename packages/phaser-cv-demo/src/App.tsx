@@ -7,6 +7,7 @@ import { Start } from './viewable-handler';
 import { EventBus } from './game/EventBus';
 import { getInitialLevelFromURL, setPersistentSelectedLevel, isLevelSelectionReady } from './game/levelSelection';
 import { pregeneratePuzzles } from './utils/puzzleCache';
+import { refreshConfig } from './game/constants/configLoader';
 // CV 录制功能已暂时注释。恢复时取消下方注释。
 // import { CV_RECORD_PLAY, CV_RECORD_PAUSE, CV_RECORD_END, CV_RECORD_STATUS } from './game/cvRecordEvents';
 
@@ -35,8 +36,11 @@ function App() {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const handler = (e: MessageEvent) => {
-            if (e.data?.type === 'level-screenshots-updated') setScreenshotVersion((v) => v + 1);
+        const handler = async (e: MessageEvent) => {
+            if (e.data?.type === 'level-screenshots-updated') {
+                await refreshConfig();
+                setScreenshotVersion((v) => v + 1);
+            }
         };
         window.addEventListener('message', handler);
         return () => window.removeEventListener('message', handler);
@@ -121,7 +125,7 @@ function App() {
         <div id="app" className={levelSelectVisible ? 'level-select-visible' : ''} style={{ backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
             <PhaserGame ref={phaserRef} currentActiveScene={currentScene} />
             {levelSelectVisible && <LevelSelect onSelectLevel={handleSelectLevel} screenshotVersion={screenshotVersion} />}
-            <FpsDisplay />
+            {import.meta.env.DEV ? <FpsDisplay /> : null}
         </div>
     );
 }

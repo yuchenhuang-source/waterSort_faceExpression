@@ -11,15 +11,23 @@ async function bootstrap() {
   pregeneratePuzzles();
 
   const App = (await import('./App')).default;
-  const { DeviceSimulator } = await import('./components/DeviceSimulator');
 
-  ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-      <DeviceSimulator>
+  if (import.meta.env.DEV) {
+    const { DeviceSimulator } = await import('./components/DeviceSimulator');
+    ReactDOM.createRoot(document.getElementById('root')!).render(
+      <React.StrictMode>
+        <DeviceSimulator>
+          <App />
+        </DeviceSimulator>
+      </React.StrictMode>,
+    );
+  } else {
+    ReactDOM.createRoot(document.getElementById('root')!).render(
+      <React.StrictMode>
         <App />
-      </DeviceSimulator>
-    </React.StrictMode>,
-  );
+      </React.StrictMode>,
+    );
+  }
 }
 
 bootstrap();

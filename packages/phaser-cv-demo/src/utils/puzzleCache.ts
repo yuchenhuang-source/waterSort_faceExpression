@@ -5,7 +5,7 @@
 
 import { generatePuzzleWithAdapter, PuzzleAdapterResult } from './puzzle-adapter';
 import { getOutputConfigAsync, getOutputConfigValueAsync } from './outputConfigLoader';
-import { getFixedPuzzle, hasFixedPuzzle } from './fixedPuzzleStorage';
+import { getFixedPuzzle, hasFixedPuzzle } from '../game/constants/configLoader';
 
 export interface CachedPuzzleData {
   puzzle: PuzzleAdapterResult;

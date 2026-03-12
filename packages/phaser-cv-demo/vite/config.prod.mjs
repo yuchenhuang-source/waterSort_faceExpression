@@ -24,6 +24,11 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 export default defineConfig({
     root,
     base: './',
+    define: {
+        // 确保 production 构建中 DEV=false，从而隐藏 Simulator 按钮、FPS 等开发工具
+        'import.meta.env.DEV': false,
+        'import.meta.env.PROD': true
+    },
     plugins: [
         react(),
         phasermsg(),

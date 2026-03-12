@@ -9,6 +9,8 @@
     "dev:demo:cv": "npm run dev:cv -w @ballsort-multi/phaser-cv-demo",
     "dev:control:cv:all": "npm run dev:control:cv:all -w @ballsort-multi/phaser-cv-demo",
     "build:demo": "npm run build -w @ballsort-multi/phaser-cv-demo",
+    "dev:arrow-playable": "npm run dev -w @ballsort-multi/arrow-playable",
+    "build:arrow-playable": "npm run build -w @ballsort-multi/arrow-playable",
     "dev:watersort": "npm run dev -w @ballsort-multi/watersort",
     "build:watersort": "npm run build -w @ballsort-multi/watersort",
     "build:all": "npm run build -ws --if-present"

@@ -7,7 +7,7 @@ import download from './constants/download';
 import { getOutputConfigAsync } from '../../utils/outputConfigLoader';
 import { getDownloadText } from '../../utils/i18n';
 import { getCachedPuzzle } from '../../utils/puzzleCache';
-import { getFixedPuzzle } from '../../utils/fixedPuzzleStorage';
+import { getFixedPuzzle } from '../constants/configLoader';
 import { getOutputConfigValue, getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 import { resetCvIds } from '../cvIdGenerator';

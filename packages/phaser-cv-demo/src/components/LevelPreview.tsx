@@ -3,7 +3,7 @@ import { BallColor, Config } from '../game/constants/GameConstants';
 import { generatePuzzleWithAdapter } from '../utils/puzzle-adapter';
 import { getCachedPuzzle, waitForPregenerate } from '../utils/puzzleCache';
 import { getLiquidColors, getOutputConfigValueAsync } from '../utils/outputConfigLoader';
-import { getLevelScreenshot } from '../utils/levelScreenshotStorage';
+import { getLevelScreenshot } from '../game/constants/configLoader';
 import tubeBodyImg from '../assets/试管-管身.png';
 import tubeMouthImg from '../assets/试管-管口.png';
 import tubeMaskImg from '../assets/tube_mask.png';

@@ -6,7 +6,7 @@ import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { loadAssetGroup } from 'virtual:game-assets';
 import { generatePuzzleWithAdapter, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
 import { getCachedPuzzle, waitForPregenerate } from '../../utils/puzzleCache';
-import { getFixedPuzzle } from '../../utils/fixedPuzzleStorage';
+import { getFixedPuzzle } from '../constants/configLoader';
 import { getPersistentSelectedLevel } from '../levelSelection';
 
 // 导入游戏图片资源

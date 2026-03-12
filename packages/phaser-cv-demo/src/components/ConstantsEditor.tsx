@@ -7,6 +7,7 @@ const CATEGORIES: Record<string, string[]> = {
   '水花': ['SPLASH_TUBE_WIDTH_RATIO', 'SPLASH_VERTICAL_OFFSET_RATIO', 'SPLASH_FRAME_RATE'],
   '小球动画': ['BALL_RISE_DURATION', 'BALL_DROP_DURATION', 'BALL_MOVE_RISE_ALREADY_HOVER', 'BALL_MOVE_RISE_NORMAL', 'BALL_MOVE_ARC_TIME', 'BALL_MOVE_START_DELAY'],
   'UI布局': ['UI_CONFIG'],
+  '关卡': ['FIXED_PUZZLES', 'LEVEL_PREVIEW_SCREENSHOTS'],
 };
 
 const CURSOR_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Tab', 'Shift', 'Control', 'Alt', 'Meta', 'Escape'];
@@ -61,15 +62,18 @@ interface FieldRowProps {
 
 function FieldRow({ label, path, value, onChange, onBlurOrEnter }: FieldRowProps) {
   const type = typeof value;
-  const val = type === 'number' ? String(value) : type === 'boolean' ? (value ? 'true' : 'false') : String(value ?? '');
+  const strVal = String(value ?? '');
+  const isBase64Screenshot = type === 'string' && strVal.startsWith('data:image') && strVal.length > 100;
+  const val = type === 'number' ? String(value) : type === 'boolean' ? (value ? 'true' : 'false') : strVal;
   return (
     <div className="constants-editor-row">
       <label>{label}</label>
       <input
         type="text"
         inputMode={type === 'number' ? 'decimal' : undefined}
-        value={val}
-        onChange={(e) => onChange(path, e.target.value)}
+        value={isBase64Screenshot ? '[已生成]' : val}
+        readOnly={isBase64Screenshot}
+        onChange={(e) => !isBase64Screenshot && onChange(path, e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === 'Tab') {
             onBlurOrEnter();
