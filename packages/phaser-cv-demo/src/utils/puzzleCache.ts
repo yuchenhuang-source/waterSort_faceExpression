@@ -5,6 +5,7 @@
 
 import { generatePuzzleWithAdapter, PuzzleAdapterResult } from './puzzle-adapter';
 import { getOutputConfigAsync, getOutputConfigValueAsync } from './outputConfigLoader';
+import { getFixedPuzzle, hasFixedPuzzle } from './fixedPuzzleStorage';
 
 export interface CachedPuzzleData {
   puzzle: PuzzleAdapterResult;
@@ -23,11 +24,14 @@ function cacheKey(difficulty: number, emptyTubeCount: number): string {
 
 /**
  * 获取缓存的谜题，若无则返回 null
+ * 优先使用模拟器固定的关卡（LevelPreview、Game 等统一走此逻辑）
  */
 export function getCachedPuzzle(
   difficulty: number,
   emptyTubeCount: number
 ): CachedPuzzleData | null {
+  const fixed = getFixedPuzzle(difficulty);
+  if (fixed) return fixed;
   return cache.get(cacheKey(difficulty, emptyTubeCount)) ?? null;
 }
 
@@ -42,10 +46,14 @@ export function waitForPregenerate(): Promise<void> {
 
 /**
  * 应用启动时调用：每次游戏启动生成 3 个关卡（难度 1/5/9），供选关预览和游戏使用
- * 防止重复执行：App useEffect 和 Preloader 的 waitForPregenerate 都可能触发，只执行一次
+ * 若有固定关卡则跳过预生成（避免覆盖固定数据）
  */
 export function pregeneratePuzzles(): void {
   if (_pregeneratePromise) return;
+  if (hasFixedPuzzle()) {
+    _pregeneratePromise = getOutputConfigAsync().then(() => undefined) as Promise<void>;
+    return;
+  }
   _pregeneratePromise = getOutputConfigAsync()
     .then(async () => {
       const emptyTubeCount = Math.max(

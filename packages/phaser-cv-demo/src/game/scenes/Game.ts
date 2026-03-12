@@ -7,6 +7,7 @@ import download from './constants/download';
 import { getOutputConfigAsync } from '../../utils/outputConfigLoader';
 import { getDownloadText } from '../../utils/i18n';
 import { getCachedPuzzle } from '../../utils/puzzleCache';
+import { getFixedPuzzle } from '../../utils/fixedPuzzleStorage';
 import { getOutputConfigValue, getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { generatePuzzleWithAdapter } from '../../utils/puzzle-adapter';
 import { resetCvIds } from '../cvIdGenerator';
@@ -54,6 +55,9 @@ export class Game extends Scene
     /** CV 模式需要 tint 的对象（通用逻辑，新增对象只需 registerCvTintable） */
     private cvTintables: Array<{ obj: Phaser.GameObjects.GameObject; id: number }> = [];
 
+    /** Game Control MCP: WebSocket 连接，control=1 时启用 */
+    private controlWs: WebSocket | null = null;
+
     constructor ()
     {
         super('Game');
@@ -62,7 +66,9 @@ export class Game extends Scene
     async create (data?: { puzzle?: any; difficulty?: number; emptyTubeCount?: number })
     {
         const tCreate = performance.now();
-        this.cameras.main.setBackgroundColor('rgba(0, 0, 0, 0)');
+        const urlParams = new URLSearchParams(window.location.search);
+        const isScreenshotMode = urlParams.get('screenshot') === '1';
+        this.cameras.main.setBackgroundColor(isScreenshotMode ? '#000000' : 'rgba(0, 0, 0, 0)');
         
         // 加载配置
         await this.loadConfig();
@@ -75,16 +81,20 @@ export class Game extends Scene
         resetCvIds();
         // 清空 CV tint 注册表（场景重启时避免重复）
         this.cvTintables = [];
-        // 创建全屏背景（作为普通 GameObject，CV 模式 tint 处理）
-        this.createBackground();
+        // 截图模式：不创建背景
+        if (!isScreenshotMode) {
+            this.createBackground();
+        }
 
         // 创建游戏区域，传入 Preloader 阶段生成的谜题和配置（如果存在）
         const tBoard = performance.now();
         this.board = new Board(this, data?.puzzle, data?.difficulty, data?.emptyTubeCount);
         console.log('[TIMING] Board创建完成', { t: performance.now(), d: (performance.now() - tBoard).toFixed(0) + 'ms' });
 
-        // 创建左上角 icon 和屏幕中心按钮
-        this.createUIButtons();
+        // 截图模式：不创建 icon 和中心按钮
+        if (!isScreenshotMode) {
+            this.createUIButtons();
+        }
 
         // 初始化场景大小
         this.updateGameSize();
@@ -129,6 +139,136 @@ export class Game extends Scene
             ts: new Date().toISOString()
         });
         EventBus.emit('current-scene-ready', this);
+
+
+        // Game Control MCP: control=1 时连接 ws://localhost:9876
+        if (urlParams.get('control') === '1') {
+            this.initControlWebSocket();
+        }
+
+        // downloadlevel=1,2,3：渲染完成后自动跳转到截图（无需点击，浏览器不拦截）
+        if (urlParams.get('downloadlevel')) {
+            this.time.delayedCall(800, () => this.captureAndNavigateToScreenshot(), [], this);
+        }
+    }
+
+    /** ?downloadlevel=1 时：截取当前帧并跳转到图片页（可右键另存为） */
+    private captureAndNavigateToScreenshot(): void {
+        const canvas = this.game.canvas;
+        if (!canvas) return;
+        const dataUrl = canvas.toDataURL('image/png');
+        window.location.replace(dataUrl);
+    }
+
+    /** Game Control MCP: 连接桥接 WebSocket，接收 { steps: [...] } 并模拟触摸 */
+    private initControlWebSocket() {
+        try {
+            this.controlWs = new WebSocket('ws://localhost:9876');
+            this.controlWs.onopen = () => {
+                // #region agent log
+                fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1a1f87'},body:JSON.stringify({sessionId:'1a1f87',location:'Game.ts:wsOpen',message:'WebSocket connected',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+                // #endregion
+                console.log('[Control] Connected to ws://localhost:9876');
+            };
+            this.controlWs.onclose = () => console.log('[Control] Disconnected');
+            this.controlWs.onerror = () => {};
+            this.controlWs.onmessage = (ev) => {
+                try {
+                    const data = JSON.parse(ev.data as string);
+                    if (data && Array.isArray(data.steps)) {
+                        // #region agent log
+                        fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1a1f87'},body:JSON.stringify({sessionId:'1a1f87',location:'Game.ts:onmessage',message:'steps received',data:{stepCount:data.steps.length},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+                        // #endregion
+                        this.executeControlSteps(data.steps);
+                    }
+                } catch (e) {
+                    console.warn('[Control] Invalid message:', e);
+                }
+            };
+        } catch (e) {
+            console.warn('[Control] WebSocket init failed:', e);
+        }
+    }
+
+    /** 校验 d→w→u 约束：d 后必须有 w 才能 u */
+    private validateControlSteps(steps: unknown[]): boolean {
+        let hasDownWithoutWait = false;
+        for (const step of steps) {
+            if (!Array.isArray(step) || step.length < 2) return false;
+            const op = step[0];
+            if (op === 'd') hasDownWithoutWait = true;
+            else if (op === 'w') hasDownWithoutWait = false;
+            else if (op === 'u') {
+                if (hasDownWithoutWait) return false;
+            }
+        }
+        return true;
+    }
+
+    /** 归一化坐标 → 画布 client 坐标，用于 dispatch PointerEvent */
+    private normToClient(x: number, y: number): { clientX: number; clientY: number } {
+        const canvas = this.game.canvas;
+        if (!canvas) return { clientX: 0, clientY: 0 };
+        const rect = canvas.getBoundingClientRect();
+        return {
+            clientX: rect.left + rect.width * Math.max(0, Math.min(1, x)),
+            clientY: rect.top + rect.height * Math.max(0, Math.min(1, y)),
+        };
+    }
+
+    /** 模拟 pointerdown */
+    private simulatePointerDown(x: number, y: number) {
+        const { clientX, clientY } = this.normToClient(x, y);
+        // #region agent log
+        fetch('http://127.0.0.1:7727/ingest/2104fe52-dda1-4f44-a485-b3dec9559cf9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1a1f87'},body:JSON.stringify({sessionId:'1a1f87',location:'Game.ts:simulatePointerDown',message:'pointerdown',data:{normX:x,normY:y,clientX,clientY},timestamp:Date.now(),hypothesisId:'H6'})}).catch(()=>{});
+        // #endregion
+        const canvas = this.game.canvas;
+        if (canvas) {
+            canvas.dispatchEvent(new PointerEvent('pointerdown', { clientX, clientY, pointerId: 1, pointerType: 'touch', isPrimary: true }));
+        }
+    }
+
+    /** 模拟 pointerup */
+    private simulatePointerUp(x: number, y: number) {
+        const { clientX, clientY } = this.normToClient(x, y);
+        const canvas = this.game.canvas;
+        if (canvas) {
+            canvas.dispatchEvent(new PointerEvent('pointerup', { clientX, clientY, pointerId: 1, pointerType: 'touch', isPrimary: true }));
+        }
+    }
+
+    /** 模拟 pointermove */
+    private simulatePointerMove(x: number, y: number) {
+        const { clientX, clientY } = this.normToClient(x, y);
+        const canvas = this.game.canvas;
+        if (canvas) {
+            canvas.dispatchEvent(new PointerEvent('pointermove', { clientX, clientY, pointerId: 1, pointerType: 'touch', isPrimary: true }));
+        }
+    }
+
+    /** 顺序执行 steps，用 delayedCall 串起 */
+    private executeControlSteps(steps: unknown[]) {
+        if (!this.validateControlSteps(steps)) {
+            console.warn('[Control] Rejected: d must be followed by w before u');
+            return;
+        }
+        let scheduleAt = 0;
+        for (const step of steps as Array<[string, number, number?, number?]>) {
+            const op = step[0];
+            if (op === 'd') {
+                const x = step[1] ?? 0.5, y = step[2] ?? 0.5;
+                this.time.delayedCall(scheduleAt, () => this.simulatePointerDown(x, y), [], this);
+            } else if (op === 'u') {
+                const x = step[1] ?? 0.5, y = step[2] ?? 0.5;
+                this.time.delayedCall(scheduleAt, () => this.simulatePointerUp(x, y), [], this);
+            } else if (op === 'm') {
+                const x = step[1] ?? 0.5, y = step[2] ?? 0.5;
+                this.time.delayedCall(scheduleAt, () => this.simulatePointerMove(x, y), [], this);
+            } else if (op === 'w') {
+                const ms = step[1] ?? 0;
+                scheduleAt += Math.max(0, ms);
+            }
+        }
     }
 
     /** CvAutoInitPlugin 在 create 后调用，返回 adapter 则自动 init CV */
@@ -173,6 +313,12 @@ export class Game extends Scene
         if (difficulty === this.currentDifficulty) return;
         const levelNum = difficulty === 1 ? 1 : difficulty === 5 ? 2 : 3;
         console.log('[LEVEL_ENTER] 开始切换关卡', { difficulty, levelNum, t: performance.now() });
+        // 固定关卡：模拟器点击「固定随机关卡」后，切换关卡时仍使用固定谜题
+        const fixed = getFixedPuzzle(difficulty);
+        if (fixed) {
+            this.scene.restart(fixed);
+            return;
+        }
         const emptyTubeCount = this.currentEmptyTubeCount;
         const cached = getCachedPuzzle(difficulty, emptyTubeCount);
         if (cached) {
@@ -936,5 +1082,9 @@ export class Game extends Scene
         EventBus.off('game-deadlock', this.showDeadlockPopup, this);
         EventBus.off('jump-step', this.onJumpStep, this);
         EventBus.off('tube-completed', this.onTubeCompleted, this);
+        if (this.controlWs) {
+            this.controlWs.close();
+            this.controlWs = null;
+        }
     }
 }

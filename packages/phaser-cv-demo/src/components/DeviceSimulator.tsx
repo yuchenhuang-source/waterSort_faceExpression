@@ -3,7 +3,44 @@ import { ConstantsEditor } from './ConstantsEditor';
 // CV 录制功能已暂时注释。恢复时取消下方注释。
 // import CVRecordControls from './CVRecordControls';
 import type { ColorMap } from '@ballsort-multi/phaser-cv';
+import { generatePuzzleWithAdapter } from '../utils/puzzle-adapter';
+import { getOutputConfigValueAsync } from '../utils/outputConfigLoader';
+import { setFixedPuzzles, hasFixedPuzzle } from '../utils/fixedPuzzleStorage';
+import { setLevelScreenshots } from '../utils/levelScreenshotStorage';
 import './DeviceSimulator.css';
+
+/** 通过 Puppeteer API 截取 3 关并存储，完成后通知 iframe 刷新预览 */
+async function captureAndStoreLevelScreenshots(
+  onComplete: () => void,
+  onProgress?: (step: 'generate' | 'screenshot' | 'done', elapsed?: number) => void
+): Promise<void> {
+  try {
+    onProgress?.('screenshot', 0);
+    const res = await fetch('/api/capture-screenshots', { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn('[Simulator] Screenshot API failed:', err.error || res.statusText);
+      return;
+    }
+    const map = (await res.json()) as Record<string, string>;
+    const normalized: Record<number, string> = {};
+    for (const [k, v] of Object.entries(map)) {
+      if (typeof v === 'string' && v.startsWith('data:')) {
+        normalized[Number(k)] = v;
+      }
+    }
+    if (Object.keys(normalized).length > 0) {
+      setLevelScreenshots(normalized);
+      onProgress?.('done');
+      onComplete();
+    } else {
+      onProgress?.('done');
+    }
+  } catch (e) {
+    onProgress?.('done');
+    console.warn('[Simulator] Screenshot capture failed:', e);
+  }
+}
 
 /** Decode a cv-frame-data payload and trigger a PNG download. */
 function downloadCVFrameAsPng(data: { pixels: string; width: number; height: number; colorMap: ColorMap }) {
@@ -84,7 +121,18 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
   const [lang, setLang] = useState(initial.lang);
   const [showConstantsEditor, setShowConstantsEditor] = useState(true);
   const [iconDebug, setIconDebug] = useState<{ visibleRect: { x: number; y: number; width: number; height: number }; iconRect: { x: number; y: number; w: number; h: number }; inBounds: boolean } | null>(null);
+  const [fixedPuzzleActive, setFixedPuzzleActive] = useState(() => typeof window !== 'undefined' && hasFixedPuzzle());
+  const [fixingPuzzle, setFixingPuzzle] = useState(false);
+  const [fixProgress, setFixProgress] = useState<{ step: 'generate' | 'screenshot' | 'done'; elapsed: number } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (!fixingPuzzle || fixProgress?.step !== 'screenshot') return;
+    const id = setInterval(() => {
+      setFixProgress((p) => (p?.step === 'screenshot' ? { ...p, elapsed: p.elapsed + 1 } : p));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [fixingPuzzle, fixProgress?.step]);
 
   const search = typeof window !== 'undefined' ? window.location.search : '';
   const urlParams = new URLSearchParams(search);
@@ -286,6 +334,80 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
           title="数值编辑"
         >
           {showConstantsEditor ? '✕ 关闭' : '⚙ 数值编辑'}
+        </button>
+        <button
+          type="button"
+          className={`sim-fix-puzzle-btn ${fixedPuzzleActive ? 'is-active' : ''} ${fixingPuzzle ? 'is-loading' : ''}`}
+          title="随机更新 3 个关卡（难度 1/5/9），游戏永远使用固定关卡"
+          disabled={fixingPuzzle}
+          onClick={async () => {
+            setFixingPuzzle(true);
+            setFixProgress({ step: 'generate', elapsed: 0 });
+            try {
+              const emptyTubeCount = Math.max(1, Math.min(6, await getOutputConfigValueAsync<number>('emptyTubeCount', 2)));
+              const difficulties = [1, 5, 9];
+              const items = difficulties.map((d) => {
+                const puzzle = generatePuzzleWithAdapter({ difficulty: d, emptyTubeCount });
+                return { puzzle, difficulty: d, emptyTubeCount };
+              });
+              setFixedPuzzles(items);
+              setFixedPuzzleActive(true);
+              reloadIframe();
+              await captureAndStoreLevelScreenshots(
+                () => {
+                  iframeRef.current?.contentWindow?.postMessage({ type: 'level-screenshots-updated' }, '*');
+                },
+                (step, elapsed) => {
+                  setFixProgress((p) => (p ? { step, elapsed: elapsed ?? p.elapsed } : { step, elapsed: elapsed ?? 0 }));
+                }
+              );
+            } finally {
+              setFixingPuzzle(false);
+              setFixProgress(null);
+            }
+          }}
+        >
+          {fixingPuzzle ? (
+            <span className="sim-fix-puzzle-progress">
+              <span className="sim-fix-puzzle-text">
+                {fixProgress?.step === 'generate' && '生成关卡…'}
+                {fixProgress?.step === 'screenshot' && `截图中… ${fixProgress.elapsed}s`}
+                {fixProgress?.step === 'done' && '完成'}
+              </span>
+              {fixProgress?.step === 'screenshot' && (
+                <span
+                  className="sim-fix-puzzle-bar"
+                  style={{ width: `${Math.min(95, (fixProgress.elapsed / 12) * 100)}%` }}
+                />
+              )}
+            </span>
+          ) : (
+            '🎲 随机更新3关'
+          )}
+        </button>
+        <button
+          type="button"
+          className="sim-cv-download-btn"
+          title="下载当前游戏画面截图"
+          onClick={() => {
+            try {
+              const doc = iframeRef.current?.contentDocument;
+              const canvas = doc?.querySelector('#game-container canvas') as HTMLCanvasElement | null;
+              if (!canvas) return;
+              const dataUrl = canvas.toDataURL('image/png');
+              const a = document.createElement('a');
+              a.href = dataUrl;
+              a.download = `screenshot-${Date.now()}.png`;
+              a.style.display = 'none';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            } catch (e) {
+              console.warn('[Simulator] Screenshot failed:', e);
+            }
+          }}
+        >
+          ⬇ 下载截图
         </button>
         <span
           className="sim-icon-debug"

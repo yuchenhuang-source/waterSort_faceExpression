@@ -25,7 +25,10 @@
   "levelPreview": {
     "scale": 0.95,
     "translateX": 0,
-    "translateY": 38
+    "translateY": 38,
+    "PREVIEW_OFFSET_X": 0,
+    "PREVIEW_OFFSET_Y": 38,
+    "PREVIEW_SCALE": 0.95
   },
   "handAnimation": {
     "moveDuration": 600,

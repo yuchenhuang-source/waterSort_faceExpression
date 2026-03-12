@@ -3,6 +3,7 @@ import { BallColor, Config } from '../game/constants/GameConstants';
 import { generatePuzzleWithAdapter } from '../utils/puzzle-adapter';
 import { getCachedPuzzle, waitForPregenerate } from '../utils/puzzleCache';
 import { getLiquidColors, getOutputConfigValueAsync } from '../utils/outputConfigLoader';
+import { getLevelScreenshot } from '../utils/levelScreenshotStorage';
 import tubeBodyImg from '../assets/试管-管身.png';
 import tubeMouthImg from '../assets/试管-管口.png';
 import tubeMaskImg from '../assets/tube_mask.png';
@@ -46,6 +47,8 @@ interface LevelPreviewProps {
   difficulty: number;
   /** Max tubes to show in preview (default 5) */
   maxTubes?: number;
+  /** 截图更新版本，变化时重新拉取 */
+  screenshotVersion?: number;
 }
 
 /** Renders tubes with liquid blocks - identical look to in-game levels */
@@ -53,9 +56,22 @@ interface LevelPreviewConfig {
   scale?: number;
   translateX?: number;
   translateY?: number;
+  PREVIEW_OFFSET_X?: number;
+  PREVIEW_OFFSET_Y?: number;
+  PREVIEW_SCALE?: number;
 }
 
-const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 }) => {
+function getPreviewTransformConfig(fromOutput: LevelPreviewConfig | undefined, fromUI: { PREVIEW_OFFSET_X?: number; PREVIEW_OFFSET_Y?: number; PREVIEW_SCALE?: number } | undefined) {
+  return {
+    scale: fromUI?.PREVIEW_SCALE ?? fromOutput?.PREVIEW_SCALE ?? fromOutput?.scale ?? 1,
+    translateX: fromUI?.PREVIEW_OFFSET_X ?? fromOutput?.PREVIEW_OFFSET_X ?? fromOutput?.translateX ?? 0,
+    translateY: fromUI?.PREVIEW_OFFSET_Y ?? fromOutput?.PREVIEW_OFFSET_Y ?? fromOutput?.translateY ?? 0,
+  };
+}
+
+const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5, screenshotVersion = 0 }) => {
+  const [screenshot, setScreenshot] = useState<string | null>(() => getLevelScreenshot(difficulty));
+  const [screenshotPreviewConfig, setScreenshotPreviewConfig] = useState<{ scale: number; translateX: number; translateY: number } | null>(null);
   const [previewData, setPreviewData] = useState<{
     tubes: { color: BallColor; count: number }[][];
     liquidColors: { [key in BallColor]: number };
@@ -63,7 +79,26 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 })
   } | null>(null);
 
   useEffect(() => {
+    setScreenshot(getLevelScreenshot(difficulty));
+  }, [difficulty, screenshotVersion]);
+
+  useEffect(() => {
+    if (!getLevelScreenshot(difficulty)) return;
     let cancelled = false;
+    getOutputConfigValueAsync<LevelPreviewConfig>('levelPreview')
+      .then((fromOutput) => {
+        if (cancelled) return;
+        const fromUI = Config.UI_CONFIG?.LEVEL_SELECT;
+        setScreenshotPreviewConfig(getPreviewTransformConfig(fromOutput, fromUI));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [difficulty, screenshotVersion]);
+
+  useEffect(() => {
+    let cancelled = false;
+    // 有截图时跳过 tube 预览构建（不清空 previewData，保留作回退）
+    if (getLevelScreenshot(difficulty)) return;
     // 必须等 pregenerate 完成，确保 config 已加载且 cache 与游戏使用相同 emptyTubeCount
     waitForPregenerate()
       .then(async () => {
@@ -74,11 +109,7 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 })
         const liquidColors = getLiquidColors();
         const fromOutput = await getOutputConfigValueAsync<LevelPreviewConfig>('levelPreview');
         const fromUI = Config.UI_CONFIG?.LEVEL_SELECT;
-        const previewConfig: LevelPreviewConfig = {
-          scale: fromUI?.PREVIEW_SCALE ?? fromOutput?.scale ?? 1,
-          translateX: fromUI?.PREVIEW_OFFSET_X ?? fromOutput?.translateX ?? 0,
-          translateY: fromUI?.PREVIEW_OFFSET_Y ?? fromOutput?.translateY ?? 0
-        };
+        const previewConfig = getPreviewTransformConfig(fromOutput, fromUI);
         let tubes: { color: BallColor; count: number }[][];
         if (cached?.puzzle?.tubes) {
           tubes = cached.puzzle.tubes.slice(0, maxTubes).map(tubeToLiquidBlocks);
@@ -92,7 +123,24 @@ const LevelPreview: React.FC<LevelPreviewProps> = ({ difficulty, maxTubes = 5 })
         if (!cancelled) setPreviewData(null);
       });
     return () => { cancelled = true; };
-  }, [difficulty, maxTubes]);
+  }, [difficulty, maxTubes, screenshotVersion]);
+
+  if (screenshot) {
+    const cfg = screenshotPreviewConfig ?? { scale: 1, translateX: 0, translateY: 0 };
+    return (
+      <div className="level-preview level-preview-screenshot">
+        <div
+          className="level-preview-screenshot-inner"
+          style={{
+            transform: `translate(${cfg.translateX}%, ${cfg.translateY}%) scale(${cfg.scale})`,
+            transformOrigin: 'center center',
+          }}
+        >
+          <img src={screenshot} alt="" className="level-preview-screenshot-img" />
+        </div>
+      </div>
+    );
+  }
 
   if (!previewData || previewData.tubes.length === 0) return null;
 

@@ -10,6 +10,8 @@ import { Config } from '../game/constants/GameConstants';
 
 export interface LevelSelectProps {
   onSelectLevel: (level: number) => void;
+  /** 截图更新版本，变化时 LevelPreview 重新拉取 */
+  screenshotVersion?: number;
 }
 
 interface HandState {
@@ -33,7 +35,7 @@ function getPreviewSize(): { width: number; height: number } {
 }
 
 /** 与 dof 竖版选关页面一致，3 个假关卡对应难度 1/5/9 */
-const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
+const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel, screenshotVersion = 0 }) => {
   const [previewSize, setPreviewSize] = useState(getPreviewSize);
   const previewWidth = previewSize.width;
   const previewHeight = previewSize.height;
@@ -238,7 +240,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({ onSelectLevel }) => {
                   }}
                 >
                   <div className="level-image-wrapper">
-                    <LevelPreview difficulty={level.difficulty} maxTubes={5} />
+                    <LevelPreview difficulty={level.difficulty} maxTubes={5} screenshotVersion={screenshotVersion} />
                   </div>
                 </div>
               );

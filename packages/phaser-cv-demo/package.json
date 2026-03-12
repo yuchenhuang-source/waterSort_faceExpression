@@ -25,7 +25,12 @@
     "dev": "node scripts/print-dev-links.mjs && npm run dev:core",
     "dev:core": "vite --config vite/config.dev.mjs",
     "dev:cv": "node scripts/ensure-cv-venv.mjs && node scripts/print-cv-links.mjs && (lsof -ti:8080 | xargs kill -9 2>/dev/null; lsof -ti:8765 | xargs kill -9 2>/dev/null; lsof -ti:5000 | xargs kill -9 2>/dev/null; true) && concurrently -p none \"npm run dev:core\" \"npm run start:cv -w @ballsort-multi/phaser-cv\"",
+    "dev:control": "node scripts/game-control-bridge.mjs",
+    "dev:control:all": "concurrently -p none \"npm run dev:core\" \"npm run dev:control\"",
+    "dev:control:cv:all": "node scripts/ensure-cv-venv.mjs && node scripts/print-cv-links.mjs && (lsof -ti:8080 | xargs kill -9 2>/dev/null; lsof -ti:8765 | xargs kill -9 2>/dev/null; lsof -ti:5000 | xargs kill -9 2>/dev/null; lsof -ti:9876 | xargs kill -9 2>/dev/null; true) && concurrently -p none \"npm run dev:core\" \"npm run dev:control\" \"npm run start:cv -w @ballsort-multi/phaser-cv\"",
     "cv:check": "node scripts/cv-check.mjs",
+    "screenshot": "node scripts/screenshot-level.mjs",
+    "screenshot:3": "node scripts/screenshot-level.mjs --mode 3",
     "build": "vite build --config vite/config.prod.mjs && node scripts/remove-script.mjs",
     "dev-tools": "node --watch scripts/constants-editor-server.mjs",
     "dev:all": "npm run dev"
@@ -43,6 +48,8 @@
     "vite-plugin-singlefile": "^2.0.2"
   },
   "devDependencies": {
+    "puppeteer": "^24.0.0",
+    "ws": "^8.18.0",
     "concurrently": "^9.0.1",
     "@rollup/plugin-alias": "^5.1.0",
     "@types/react": "^18.3.3",

@@ -23,6 +23,7 @@ function App() {
     const phaserRef = useRef<IRefPhaserGame | null>(null);
     const gameReadyRef = useRef(false);
     const [bgImage, setBgImage] = useState<string>('');
+    const [screenshotVersion, setScreenshotVersion] = useState(0);
 
     const initialLevelFromURL = getInitialLevelFromURL();
     const hasInitialLevel = initialLevelFromURL !== null;
@@ -30,6 +31,15 @@ function App() {
 
     useEffect(() => {
         pregeneratePuzzles();
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handler = (e: MessageEvent) => {
+            if (e.data?.type === 'level-screenshots-updated') setScreenshotVersion((v) => v + 1);
+        };
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
     }, []);
 
     // CV 录制功能已暂时注释：不再监听 cv-record-play/pause/end、cv-capture-frame，不再转发 CV_RECORD_STATUS。恢复时取消下方注释。
@@ -110,7 +120,7 @@ function App() {
     return (
         <div id="app" className={levelSelectVisible ? 'level-select-visible' : ''} style={{ backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
             <PhaserGame ref={phaserRef} currentActiveScene={currentScene} />
-            {levelSelectVisible && <LevelSelect onSelectLevel={handleSelectLevel} />}
+            {levelSelectVisible && <LevelSelect onSelectLevel={handleSelectLevel} screenshotVersion={screenshotVersion} />}
             <FpsDisplay />
         </div>
     );

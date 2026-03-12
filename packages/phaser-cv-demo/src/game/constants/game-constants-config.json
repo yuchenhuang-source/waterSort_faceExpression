@@ -117,8 +117,8 @@
       "PREVIEW_BORDER_COLOR": "#ffffff",
       "PREVIEW_BORDER_RADIUS": 8,
       "PREVIEW_OFFSET_X": 0,
-      "PREVIEW_OFFSET_Y": -5,
-      "PREVIEW_SCALE": 0.95,
+      "PREVIEW_OFFSET_Y": 0,
+      "PREVIEW_SCALE": 1.5,
       "PREVIEW_LIQUID_HEIGHT_RATIO": 0.85
     }
   }

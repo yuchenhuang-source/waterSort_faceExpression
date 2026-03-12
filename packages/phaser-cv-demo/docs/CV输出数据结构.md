@@ -123,7 +123,24 @@ normX = obj.x / frameSize.gameWidth
 normY = obj.y / frameSize.gameHeight
 ```
 
-## 6. 点击 MCP 接口
+## 6. 点击 MCP 实现计划（逐步 Todo）
+
+| # | 任务 | 文件 | 状态 |
+|---|------|------|------|
+| 1 | frameSize 增加 gameWidth、gameHeight（竖屏 1080×1920，横屏 1920×1080） | `color_cv_processor.py` | |
+| 2 | server 增加 latest_detections 变量，每帧更新 | `server.py` | |
+| 3 | server 增加 _attach_labels()，为 objects/frameDiffs 附加 label | `server.py` | |
+| 4 | server 增加 _add_normalized_coords()，为 objects 附加 normX、normY | `server.py` | |
+| 5 | **停下来，告诉用户开启 Cursor Debug Mode 测试 progress** | — | |
+| 6 | HTTP 增加 GET /api/latest-detections，CORS 启用 | `server.py` | |
+| 7 | CVBridge.sendFrameAndWait 支持 idToLabel 参数 | `CVBridge.ts` | |
+| 8 | CvIntegration 支持 getCvIdToLabelMap，传给 sendFrameAndWait | `CvIntegration.ts` | |
+| 9 | **停下来，告诉用户开启 Cursor Debug Mode 测试 progress** | — | |
+| 10 | Board.getCvIdToLabelMap()，Game.getCvAdapter 增加 getCvIdToLabelMap | `Board.ts`, `Game.ts` | |
+| 11 | 文档更新（CV输出数据结构.md） | — | |
+
+
+## 7. 点击 MCP 接口
 
 点击 MCP 可通过 HTTP 轮询获取最新 detections（含 frameDiffs）：
 
@@ -136,7 +153,7 @@ GET http://localhost:5000/api/latest-detections
 - **CORS**：`Access-Control-Allow-Origin: *`，支持跨域请求
 - **轮询建议**：按需轮询（如 500ms 间隔），或按 S 后立即请求
 
-## 7. 自动化测试所需字段
+## 8. 自动化测试所需字段
 
 | 用途 | 必需字段 |
 |------|----------|

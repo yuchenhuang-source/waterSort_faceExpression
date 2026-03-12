@@ -206,6 +206,62 @@
   border-color: #00d9ff;
 }
 
+.sim-fix-puzzle-btn {
+  padding: 6px 12px;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  background: #0f3460;
+  color: #00d9ff;
+  font-size: 13px;
+  cursor: pointer;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.sim-fix-puzzle-btn:hover:not(:disabled) {
+  background: #16213e;
+  border-color: #00d9ff;
+}
+
+.sim-fix-puzzle-btn.is-active {
+  background: #2a4a2a;
+  border-color: #6dff6d;
+  color: #6dff6d;
+}
+
+.sim-fix-puzzle-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sim-fix-puzzle-btn.is-loading {
+  position: relative;
+  overflow: hidden;
+  min-width: 120px;
+}
+
+.sim-fix-puzzle-progress {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.sim-fix-puzzle-text {
+  position: relative;
+  z-index: 1;
+}
+
+.sim-fix-puzzle-bar {
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #00d9ff, #6dff6d);
+  border-radius: 1px;
+  transition: width 0.5s ease;
+  z-index: 0;
+}
+
 .sim-cv-download-btn {
   padding: 6px 12px;
   border: 1px solid #2a6e2a;

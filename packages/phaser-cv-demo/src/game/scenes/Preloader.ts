@@ -6,6 +6,7 @@ import { getOutputConfigValueAsync } from '../../utils/outputConfigLoader';
 import { loadAssetGroup } from 'virtual:game-assets';
 import { generatePuzzleWithAdapter, PuzzleAdapterResult } from '../../utils/puzzle-adapter';
 import { getCachedPuzzle, waitForPregenerate } from '../../utils/puzzleCache';
+import { getFixedPuzzle } from '../../utils/fixedPuzzleStorage';
 import { getPersistentSelectedLevel } from '../levelSelection';
 
 // 导入游戏图片资源
@@ -394,10 +395,14 @@ export class Preloader extends Scene {
      */
     private async generatePuzzle(): Promise<{ puzzle: PuzzleAdapterResult; difficulty: number; emptyTubeCount: number }> {
         try {
-            await waitForPregenerate();
-
-            // 使用选关界面选择的难度（1/5/9）
+            // 优先使用模拟器固定的关卡（点击「固定随机关卡」后，游戏永远固定）
             const actualDifficulty = Math.max(1, Math.min(10, getPersistentSelectedLevel()));
+            const fixed = getFixedPuzzle(actualDifficulty);
+            if (fixed) {
+                return fixed;
+            }
+
+            await waitForPregenerate();
 
             const emptyTubeCount = await getOutputConfigValueAsync<number>('emptyTubeCount', 2);
             const actualEmptyTubeCount = Math.max(1, Math.min(6, emptyTubeCount));

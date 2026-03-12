@@ -25,10 +25,22 @@ function resolveLevelFromParam(rawValue: string | null): number | null {
 
 if (typeof window !== 'undefined') {
   const params = new URLSearchParams(window.location.search);
-  const resolved = resolveLevelFromParam(params.get('level'));
-  if (resolved !== null) {
-    persistentSelectedDifficulty = resolved;
-    initialLevelFromURL = 1;
+  const levelParam = params.get('level') ?? params.get('downloadlevel');
+  const resolved = resolveLevelFromParam(levelParam);
+  const hasDownloadLevel = params.get('downloadlevel') != null;
+
+  // control=1 或 cv=1 时：无 downloadlevel 则显示选关；有 downloadlevel 则直接进入该关卡并自动截图
+  if (params.get('control') === '1' || params.get('cv') === '1') {
+    if (resolved !== null) persistentSelectedDifficulty = resolved;
+    if (hasDownloadLevel && resolved !== null) {
+      initialLevelFromURL = 1; // 跳过选关，直接进入游戏
+    }
+    // 无 downloadlevel 时 initialLevelFromURL 保持 null，显示选关
+  } else {
+    if (resolved !== null) {
+      persistentSelectedDifficulty = resolved;
+      initialLevelFromURL = 1;
+    }
   }
 }
 

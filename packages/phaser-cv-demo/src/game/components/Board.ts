@@ -70,7 +70,9 @@ export class Board extends Phaser.GameObjects.Container implements ICvRenderable
             this.loadDifficultyAndInitialize();
         }
         
-        this.createHand();
+        if (!this.isScreenshotMode()) {
+            this.createHand();
+        }
 
         // 监听窗口大小变化
         scene.scale.on('resize', this.handleResize, this);
@@ -241,7 +243,8 @@ export class Board extends Phaser.GameObjects.Container implements ICvRenderable
         if (!this.boardLiquidGraphics || !this.boardLiquidMaskGraphics) return;
         const t0 = isPerfEnabled() ? performance.now() : 0;
         this.boardLiquidGraphics.clear();
-        for (const tube of this.tubes) {
+        const tubesToDraw = this.isScreenshotMode() ? this.tubes.slice(0, this.getScreenshotTubeCount()) : this.tubes;
+        for (const tube of tubesToDraw) {
             tube.drawLiquidBlocksTo(this.boardLiquidGraphics!);
             tube.updateSurfaceSprites();
         }
@@ -254,8 +257,8 @@ export class Board extends Phaser.GameObjects.Container implements ICvRenderable
         const config = this.scene.scale.height > this.scene.scale.width ? Config.GAME_CONFIG.PORTRAIT : Config.GAME_CONFIG.LANDSCAPE;
         const cfg = config as Record<string, number>;
         const tubesScale = (cfg.TUBES_SCALE ?? 1) || 1;
-        const tubeCols = cfg.TUBE_COLS ?? Config.GAME_CONFIG.TUBE_COLS;
-        const tubeRows = cfg.TUBE_ROWS ?? Config.GAME_CONFIG.TUBE_ROWS;
+        const tubeCols = this.isScreenshotMode() ? this.getScreenshotTubeCount() : (cfg.TUBE_COLS ?? Config.GAME_CONFIG.TUBE_COLS);
+        const tubeRows = this.isScreenshotMode() ? 1 : (cfg.TUBE_ROWS ?? Config.GAME_CONFIG.TUBE_ROWS);
         const maskWidth = (config.TUBE_WIDTH - 4) * tubesScale;
         const maskHeight = (config.TUBE_HEIGHT - 4) * tubesScale;
         const radius = maskWidth / 2;
@@ -268,7 +271,8 @@ export class Board extends Phaser.GameObjects.Container implements ICvRenderable
         const startX = centerX - totalWidth / 2;
         const startY = centerY - totalHeight / 2;
         this.boardLiquidMaskGraphics.fillStyle(0xffffff);
-        this.tubes.forEach((tube, index) => {
+        const tubesToMask = this.isScreenshotMode() ? this.tubes.slice(0, this.getScreenshotTubeCount()) : this.tubes;
+        tubesToMask.forEach((tube, index) => {
             const row = Math.floor(index / tubeCols);
             const col = index % tubeCols;
             const tx = startX + col * colOffsetX;
@@ -287,6 +291,16 @@ export class Board extends Phaser.GameObjects.Container implements ICvRenderable
     private isDebugMode(): boolean {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get('debug') === '1';
+    }
+
+    /** 截图模式：只渲染 5 根试管和液体，黑底，无其他元素 */
+    private isScreenshotMode(): boolean {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('screenshot') === '1';
+    }
+
+    private getScreenshotTubeCount(): number {
+        return 5;
     }
 
     /**
@@ -2082,8 +2096,8 @@ export class Board extends Phaser.GameObjects.Container implements ICvRenderable
         }
 
         // 重新排列试管（以所有 tubes 的中点定位，间距也应用 TUBES_SCALE）
-        const tubeCols = cfg.TUBE_COLS ?? Config.GAME_CONFIG.TUBE_COLS;
-        const tubeRows = cfg.TUBE_ROWS ?? Config.GAME_CONFIG.TUBE_ROWS;
+        const tubeCols = this.isScreenshotMode() ? this.getScreenshotTubeCount() : (cfg.TUBE_COLS ?? Config.GAME_CONFIG.TUBE_COLS);
+        const tubeRows = this.isScreenshotMode() ? 1 : (cfg.TUBE_ROWS ?? Config.GAME_CONFIG.TUBE_ROWS);
         const colOffsetX = config.COL_OFFSET_X * tubesScale;
         const rowSpacingY = config.ROW_SPACING_Y * tubesScale;
         const totalWidth = (tubeCols - 1) * colOffsetX;
@@ -2093,7 +2107,13 @@ export class Board extends Phaser.GameObjects.Container implements ICvRenderable
         const startX = centerX - totalWidth / 2;
         const startY = centerY - totalHeight / 2;
 
+        const visibleCount = this.isScreenshotMode() ? this.getScreenshotTubeCount() : this.tubes.length;
         this.tubes.forEach((tube, index) => {
+            if (index >= visibleCount) {
+                tube.setVisible(false);
+                return;
+            }
+            tube.setVisible(true);
             const row = Math.floor(index / tubeCols);
             const col = index % tubeCols;
 

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from "url";
 import { enhancedAutoAssetsPlugin } from "./enhanced-auto-assets-plugin.js";
 import { constantsEditorPlugin } from "./constants-editor-plugin.mjs";
+import { screenshotCapturePlugin } from "./screenshot-capture-plugin.mjs";
 
 
 // https://vitejs.dev/config/
@@ -15,6 +16,7 @@ export default defineConfig({
     plugins: [
         react(),
         constantsEditorPlugin(),
+        screenshotCapturePlugin(),
         enhancedAutoAssetsPlugin({
             assetsDir: 'src/assets',
             verbose: false,
