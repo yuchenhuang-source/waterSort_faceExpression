@@ -14,6 +14,11 @@
   },
   "homepage": "https://github.com/phaserjs/template-react-ts#readme",
   "documentation": "./docs",
+  "constantsApi": {
+    "configPath": "src/game/constants/game-constants-config.json",
+    "apiPath": "/api/constants",
+    "buildPath": "dist/index.html"
+  },
   "keywords": [
     "phaser",
     "phaser3",

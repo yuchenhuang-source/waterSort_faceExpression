@@ -87,8 +87,8 @@ let _ensuringProject: string | null = null;
 
 /** 可切换的 playable 项目（同 simulator 打开） */
 const SIMULATOR_PROJECTS = [
-  { id: 'phaser-cv-demo', label: 'phaser-cv-demo', port: 8080 },
-  { id: 'arrow-playable', label: 'arrow playable', port: 8081 },
+  { id: 'phaser-cv-demo', label: 'phaser-cv-demo', port: 8081 },
+  { id: 'arrow-playable', label: 'arrow playable', port: 8082 },
 ];
 
 const LANG_OPTIONS = [
@@ -266,9 +266,10 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
       });
       const j = await res.json().catch(() => ({}));
       if (!j.ok) console.warn('[Simulator] Start project failed:', j.error);
+      const host = window.location.hostname || '127.0.0.1';
       for (let i = 0; i < 30; i++) {
         try {
-          await fetch(`http://127.0.0.1:${proj.port}/`, { cache: 'no-store' });
+          await fetch(`http://${host}:${proj.port}/`, { cache: 'no-store' });
           break;
         } catch {
           await new Promise((r) => setTimeout(r, 500));
@@ -305,10 +306,11 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
     }
     let cancelled = false;
     setCustomPortReady(false);
+    const host = window.location.hostname || '127.0.0.1';
     (async () => {
       for (let i = 0; i < 30 && !cancelled; i++) {
         try {
-          await fetch(`http://127.0.0.1:${customPortNum}/`, { cache: 'no-store' });
+          await fetch(`http://${host}:${customPortNum}/`, { cache: 'no-store' });
           if (!cancelled) setCustomPortReady(true);
           return;
         } catch {
@@ -333,21 +335,33 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
           if (lang) p.set('lang', lang);
           else p.delete('lang');
           const qs = p.toString();
+          const host = window.location.hostname || '127.0.0.1';
           if (isValidCustomPort) {
             return customPortReady
-              ? `http://127.0.0.1:${customPortNum}/?${qs}`
+              ? `http://${host}:${customPortNum}/?${qs}`
               : 'about:blank';
           }
           const proj = SIMULATOR_PROJECTS.find((x) => x.id === project);
           const useAlt = proj && proj.port !== 8080;
           const url = useAlt
             ? arrowReady
-              ? `http://127.0.0.1:${proj!.port}/?${qs}`
+              ? `http://${host}:${proj!.port}/?${qs}`
               : 'about:blank'
             : `${window.location.origin}${window.location.pathname || '/'}?${qs}`;
           return url;
         })()
       : '#';
+
+  const apiBase =
+    typeof window !== 'undefined'
+      ? (() => {
+          const host = window.location.hostname || '127.0.0.1';
+          if (isValidCustomPort) return `http://${host}:${customPortNum}`;
+          const proj = SIMULATOR_PROJECTS.find((x) => x.id === project);
+          if (proj && proj.port !== 8080) return `http://${host}:${proj.port}`;
+          return '';
+        })()
+      : '';
 
   if (!showSimulator) {
     return (
@@ -607,7 +621,7 @@ export function DeviceSimulator({ children }: { children: React.ReactNode }) {
         </div>
         {showConstantsEditor && (
           <div className="device-simulator-editor">
-            <ConstantsEditor />
+            <ConstantsEditor apiBase={apiBase} />
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from "url";
 import { enhancedAutoAssetsPlugin } from "./enhanced-auto-assets-plugin.js";
-import { constantsEditorPlugin } from "./constants-editor-plugin.mjs";
+import { constantsApiPlugin } from "./constants-api-plugin.mjs";
 import { screenshotCapturePlugin } from "./screenshot-capture-plugin.mjs";
 import { startProjectPlugin } from "./start-project-plugin.mjs";
 
@@ -16,7 +16,7 @@ export default defineConfig({
     logLevel: 'warn',
     plugins: [
         react(),
-        constantsEditorPlugin(),
+        constantsApiPlugin(),
         screenshotCapturePlugin(),
         startProjectPlugin(),
         enhancedAutoAssetsPlugin({
@@ -31,9 +31,9 @@ export default defineConfig({
         ]
     },
     server: {
-        port: 8080,
+        port: 8081,
         host: true,  // listen on 0.0.0.0 to allow access from phone on same network
-        // /api 由 constantsEditorPlugin 中间件处理，无需 proxy
+        // /api 由 constantsApiPlugin 中间件处理，无需 proxy
         watch: {
             ignored: ['**/game-constants-config.json'],
         },

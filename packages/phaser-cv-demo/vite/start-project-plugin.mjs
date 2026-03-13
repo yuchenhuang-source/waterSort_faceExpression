@@ -15,7 +15,7 @@ const startedProcesses = new Set();
 const PROJECT_CONFIG = {
   'arrow-playable': {
     dir: 'arrow-playable',
-    port: 8081,
+    port: 8082,
   },
 };
 

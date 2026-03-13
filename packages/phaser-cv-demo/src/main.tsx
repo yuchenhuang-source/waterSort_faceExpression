@@ -12,22 +12,12 @@ async function bootstrap() {
 
   const App = (await import('./App')).default;
 
-  if (import.meta.env.DEV) {
-    const { DeviceSimulator } = await import('./components/DeviceSimulator');
-    ReactDOM.createRoot(document.getElementById('root')!).render(
-      <React.StrictMode>
-        <DeviceSimulator>
-          <App />
-        </DeviceSimulator>
-      </React.StrictMode>,
-    );
-  } else {
-    ReactDOM.createRoot(document.getElementById('root')!).render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>,
-    );
-  }
+  // DEV: 仅启动游戏，不启动 Simulator。Simulator 在 arrow-playable--main 中运行。
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
 }
 
 bootstrap();

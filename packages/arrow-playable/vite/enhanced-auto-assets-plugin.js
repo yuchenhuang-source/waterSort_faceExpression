@@ -10,7 +10,10 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import * as glob from 'glob';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * 默认配置
@@ -59,6 +62,10 @@ export function enhancedAutoAssetsPlugin(options = {}) {
   // 合并选项
   const resolvedOptions = { ...DEFAULT_OPTIONS, ...options };
   const resolvedVirtualModuleId = '\0' + resolvedOptions.virtualModuleId;
+  const projectRoot = path.join(__dirname, '..');
+  const assetsDirAbs = path.isAbsolute(resolvedOptions.assetsDir)
+    ? resolvedOptions.assetsDir
+    : path.join(projectRoot, resolvedOptions.assetsDir);
 
   return {
     name: 'vite-plugin-enhanced-auto-assets',
@@ -74,9 +81,9 @@ export function enhancedAutoAssetsPlugin(options = {}) {
     async load(id) {
       if (id === resolvedVirtualModuleId) {
         try {
-          // 扫描资源文件
+          // 扫描资源文件（使用绝对路径，避免 dev 时 cwd 不一致导致错误）
           const files = glob.sync(resolvedOptions.fileTypes, {
-            cwd: resolvedOptions.assetsDir,
+            cwd: assetsDirAbs,
             absolute: false,
             ignore: resolvedOptions.excludePatterns || [],
           });
@@ -97,7 +104,7 @@ export function enhancedAutoAssetsPlugin(options = {}) {
           }
           
           for (const file of files) {
-            const filePath = path.join(resolvedOptions.assetsDir, file);
+            const filePath = path.join(assetsDirAbs, file);
             
             // 生成包含路径的键名，避免重名
             const relativePath = file.replace(/\\/g, '/'); // 标准化路径分隔符

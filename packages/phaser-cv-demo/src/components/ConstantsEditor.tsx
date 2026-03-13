@@ -118,7 +118,12 @@ function renderNested(
   return out;
 }
 
-export function ConstantsEditor() {
+export interface ConstantsEditorProps {
+  /** API 基础 URL，如 http://127.0.0.1:8081；空则同源 */
+  apiBase?: string;
+}
+
+export function ConstantsEditor({ apiBase = '' }: ConstantsEditorProps) {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,45 +132,55 @@ export function ConstantsEditor() {
   const dataRef = useRef<Record<string, unknown> | null>(null);
   dataRef.current = data;
 
+  const base = apiBase || '';
+
   const load = useCallback(async () => {
     setLoading(true);
     setStatus(null);
     try {
-      const r = await fetch('/api/constants');
+      const r = await fetch(`${base}/api/constants`);
       if (!r.ok) throw new Error(r.statusText);
       const json = await r.json();
       setData(json);
     } catch (e) {
-      setStatus({ type: 'err', text: `加载失败: ${(e as Error).message}。请先运行 npm run dev-tools 启动数值编辑服务。` });
+      setStatus({
+        type: 'err',
+        text: base
+          ? `加载失败: ${(e as Error).message}。请确保目标游戏已启动且支持 /api/constants。`
+          : `加载失败: ${(e as Error).message}。请先运行 npm run dev-tools 启动数值编辑服务。`,
+      });
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [base]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const save = useCallback(async (dispatchReload = false) => {
-    const toSave = dataRef.current;
-    if (!toSave) return;
-    try {
-      const r = await fetch('/api/constants', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(normalizeForSave(toSave)),
-      });
-      const j = await r.json();
-      if (j.error) throw new Error(j.error);
-      setStatus({ type: 'ok', text: dispatchReload ? '已保存，游戏页热更新中…' : '已自动保存' });
-      if (dispatchReload) {
-        window.dispatchEvent(new CustomEvent('constants-saved'));
+  const save = useCallback(
+    async (dispatchReload = false) => {
+      const toSave = dataRef.current;
+      if (!toSave) return;
+      try {
+        const r = await fetch(`${base}/api/constants`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(normalizeForSave(toSave)),
+        });
+        const j = await r.json();
+        if (j.error) throw new Error(j.error);
+        setStatus({ type: 'ok', text: dispatchReload ? '已保存，游戏页热更新中…' : '已自动保存' });
+        if (dispatchReload) {
+          window.dispatchEvent(new CustomEvent('constants-saved'));
+        }
+      } catch (e) {
+        setStatus({ type: 'err', text: `保存失败: ${(e as Error).message}` });
       }
-    } catch (e) {
-      setStatus({ type: 'err', text: `保存失败: ${(e as Error).message}` });
-    }
-  }, [data]);
+    },
+    [data, base]
+  );
 
   const saveAndReloadIframe = useCallback(async () => {
     if (saveTimerRef.current) {
@@ -195,10 +210,14 @@ export function ConstantsEditor() {
     setBuildLoading(true);
     setStatus({ type: 'ok', text: '正在 build...' });
     try {
-      const r = await fetch('/api/build', { method: 'POST' });
+      const r = await fetch(`${base}/api/build`, { method: 'POST' });
       if (!r.ok) {
-        const j = await r.json();
-        throw new Error(j.error || r.statusText);
+        const j = await r.json().catch(() => ({}));
+        const msg = j.error || r.statusText;
+        if (r.status === 404) {
+          throw new Error('该游戏不支持 build，或 /api/build 未配置');
+        }
+        throw new Error(msg);
       }
       const blob = await r.blob();
       const a = document.createElement('a');
@@ -211,7 +230,7 @@ export function ConstantsEditor() {
       setStatus({ type: 'err', text: `Build 失败: ${(e as Error).message}` });
     }
     setBuildLoading(false);
-  }, []);
+  }, [base]);
 
   if (loading) {
     return (

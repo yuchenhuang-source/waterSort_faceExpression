@@ -4,7 +4,7 @@ const c = {
   green: '\x1b[32m',
   reset: '\x1b[0m',
 };
-const base = 'http://localhost:8080';
+const base = 'http://localhost:8081';
 console.log('');
 console.log(`${c.green}${c.bold}  Game:${c.reset}   ${c.cyan}${c.bold}${base}${c.reset}`);
 console.log(`${c.green}${c.bold}  Level 1:${c.reset} ${c.cyan}${c.bold}${base}?level=1${c.reset}`);
