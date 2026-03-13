@@ -38,6 +38,7 @@
     "screenshot:3": "node scripts/screenshot-level.mjs --mode 3",
     "build": "vite build --config vite/config.prod.mjs && node scripts/remove-script.mjs",
     "dev-tools": "node --watch scripts/constants-editor-server.mjs",
+    "test:config_api": "node scripts/test-config-api.mjs",
     "dev:all": "npm run dev"
   },
   "dependencies": {
